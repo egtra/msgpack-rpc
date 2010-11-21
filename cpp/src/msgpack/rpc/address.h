@@ -20,17 +20,22 @@
 
 #include <iostream>
 #include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/un.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+//#include <sys/types.h>
+//#include <sys/socket.h>
+//#include <arpa/inet.h>
+//#include <netinet/in.h>
+//#include <sys/un.h>
 #include <msgpack.hpp>
 #include <mp/unordered_map.h>
 
 namespace msgpack {
 namespace rpc {
 
+typedef short sa_family_t;
+typedef int socklen_t;
 
 class address {
 public:
@@ -218,10 +223,10 @@ inline void ip_address::set_port(uint16_t port)
 }
 
 
-inline const char* path_address::get_path() const
-{
-	return ((struct sockaddr_un*)m.ex.addr)->sun_path;
-}
+//inline const char* path_address::get_path() const
+//{
+//	return ((struct sockaddr_un*)m.ex.addr)->sun_path;
+//}
 
 
 inline bool address::operator== (const address& o) const

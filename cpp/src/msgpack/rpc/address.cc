@@ -16,7 +16,7 @@
 //    limitations under the License.
 //
 #include "address.h"
-#include <netdb.h>
+//#include <netdb.h>
 #include <stdexcept>
 #include <string.h>
 
@@ -124,34 +124,34 @@ ipv6_address::ipv6_address(const std::string& host, uint16_t port) :
 }
 
 
-path_address::path_address(const std::string& path) :
-	address(AF_LOCAL)
-{
-	// FIXME check path length
-	struct sockaddr_un* addr = (struct sockaddr_un*)malloc(sizeof(struct sockaddr_un));
-	if(addr == NULL) {
-		throw std::bad_alloc();
-	}
-	memset(addr, 0, sizeof(struct sockaddr_un));
-	addr->sun_family = AF_LOCAL;
-	memcpy(addr->sun_path, path.c_str(), path.size()+1);
-	m.ex.addrlen = sizeof(struct sockaddr_un);
-	m.ex.addr = (struct sockaddr*)addr;
-}
+//path_address::path_address(const std::string& path) :
+//	address(AF_LOCAL)
+//{
+//	// FIXME check path length
+//	struct sockaddr_un* addr = (struct sockaddr_un*)malloc(sizeof(struct sockaddr_un));
+//	if(addr == NULL) {
+//		throw std::bad_alloc();
+//	}
+//	memset(addr, 0, sizeof(struct sockaddr_un));
+//	addr->sun_family = AF_LOCAL;
+//	memcpy(addr->sun_path, path.c_str(), path.size()+1);
+//	m.ex.addrlen = sizeof(struct sockaddr_un);
+//	m.ex.addr = (struct sockaddr*)addr;
+//}
 
 
 std::ostream& operator<< (std::ostream& stream, const address& a)
 {
 	if(a.family() == AF_INET) {
 		char buf[16];
-		return stream << inet_ntop(AF_INET, &a.m.ipv4.sin_addr, buf, sizeof(buf)) << ':' << ntohs(a.m.ipv4.sin_port);
+		return stream << inet_ntop(AF_INET, const_cast<IN_ADDR*>(&a.m.ipv4.sin_addr), buf, sizeof(buf)) << ':' << ntohs(a.m.ipv4.sin_port);
 
 	} else if(a.family() == AF_INET6) {
 		char buf[41];
-		return stream << '[' << ::inet_ntop(AF_INET6, &a.m.ipv6.sin6_addr, buf, sizeof(buf)) << "]:" << ntohs(a.m.ipv6.sin6_port);
+		return stream << '[' << ::inet_ntop(AF_INET6, const_cast<IN6_ADDR*>(&a.m.ipv6.sin6_addr), buf, sizeof(buf)) << "]:" << ntohs(a.m.ipv6.sin6_port);
 
-	} else if(a.family() == AF_LOCAL) {
-		return stream << ((struct sockaddr_un*)a.m.ex.addr)->sun_path;
+	//} else if(a.family() == AF_LOCAL) {
+	//	return stream << ((struct sockaddr_un*)a.m.ex.addr)->sun_path;
 
 	} else {
 		// FIXME

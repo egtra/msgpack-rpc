@@ -1,5 +1,5 @@
 //
-// msgpack::rpc::loop - MessagePack-RPC for C++
+// MessagePack-RPC for C++
 //
 // Copyright (C) 2009-2010 FURUHASHI Sadayuki
 //
@@ -15,34 +15,26 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 //
-#ifndef MSGPACK_RPC_LOOP_H__
-#define MSGPACK_RPC_LOOP_H__
+#ifndef MSGPACK_RPC_VERSION_H__
+#define MSGPACK_RPC_VERSION_H__
 
-//#include <mp/wavy.h>
-#include "iocploop.h"
-#include <mp/memory.h>
-
-
-namespace msgpack {
-namespace rpc {
-
-#ifdef _WIN32
-class loop : public mp::shared_ptr<impl::windows::loop> {
-public:
-	loop() : mp::shared_ptr<impl::windows::loop>(new impl::windows::loop()) { }
-	~loop() { }
-};
-#else
-class loop : public mp::shared_ptr<mp::wavy::loop> {
-public:
-	loop() : mp::shared_ptr<mp::wavy::loop>(new mp::wavy::loop()) { }
-	~loop() { }
-};
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 
-}  // namespace rpc
-}  // namespace msgpack
+const char* msgpack_rpc_version(void);
+int msgpack_rpc_version_major(void);
+int msgpack_rpc_version_minor(void);
 
-#endif /* msgpack/rpc/loop.h */
+#define MSGPACK_RPC_VERSION "0.3.0"
+#define MSGPACK_RPC_VERSION_MAJOR 0
+#define MSGPACK_RPC_VERSION_MINOR 3
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* msgpack/rpc/version.h */
 

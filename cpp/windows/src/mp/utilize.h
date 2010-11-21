@@ -1,5 +1,5 @@
 //
-// msgpack::rpc::loop - MessagePack-RPC for C++
+// mpio utilize
 //
 // Copyright (C) 2009-2010 FURUHASHI Sadayuki
 //
@@ -15,34 +15,26 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 //
-#ifndef MSGPACK_RPC_LOOP_H__
-#define MSGPACK_RPC_LOOP_H__
-
-//#include <mp/wavy.h>
-#include "iocploop.h"
-#include <mp/memory.h>
+#ifndef MP_UTILIZE_H__
+#define MP_UTILIZE_H__
 
 
-namespace msgpack {
-namespace rpc {
+#define MP_UTILIZE \
+	struct mp_util; \
+	friend struct mp_util
 
-#ifdef _WIN32
-class loop : public mp::shared_ptr<impl::windows::loop> {
-public:
-	loop() : mp::shared_ptr<impl::windows::loop>(new impl::windows::loop()) { }
-	~loop() { }
-};
-#else
-class loop : public mp::shared_ptr<mp::wavy::loop> {
-public:
-	loop() : mp::shared_ptr<mp::wavy::loop>(new mp::wavy::loop()) { }
-	~loop() { }
-};
-#endif
+#define MP_UTIL_DEF(name) \
+	struct name::mp_util : public name
+
+#define MP_UTIL_IMPL(name) \
+	name::mp_util
+
+#define MP_UTIL \
+	(*static_cast<mp_util*>(this))
+
+#define MP_UTIL_FROM(self) \
+	(*static_cast<mp_util*>(self))
 
 
-}  // namespace rpc
-}  // namespace msgpack
-
-#endif /* msgpack/rpc/loop.h */
+#endif /* mp/utilze.h */
 

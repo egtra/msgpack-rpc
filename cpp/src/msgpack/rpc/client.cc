@@ -31,7 +31,7 @@ MP_UTIL_DEF(client) {
 
 void MP_UTIL_IMPL(client)::start_timeout()
 {
-	m_pimpl->get_loop_ref()->add_timer(1.0, 1.0, mp::bind(
+	get_loop()->add_timer(1.0, 1.0, mp::bind(
 				&MP_UTIL_IMPL(client)::step_timeout,
 				weak_session(session::m_pimpl)
 				));
@@ -54,17 +54,17 @@ client::client(const std::string& host, uint16_t port, loop lo) :
 	MP_UTIL.start_timeout();
 }
 
-client::client(const address& addr, loop lo) :
-	session(session_impl::create(tcp_builder(), addr, lo))
-{
-	MP_UTIL.start_timeout();
-}
-
-client::client(const builder& b, const address& addr, loop lo) :
-	session(session_impl::create(b, addr, lo))
-{
-	MP_UTIL.start_timeout();
-}
+//client::client(const address& addr, loop lo) :
+//	session(session_impl::create(tcp_builder(), addr, lo))
+//{
+//	MP_UTIL.start_timeout();
+//}
+//
+//client::client(const builder& b, const address& addr, loop lo) :
+//	session(session_impl::create(b, addr, lo))
+//{
+//	MP_UTIL.start_timeout();
+//}
 
 client::~client() { }
 

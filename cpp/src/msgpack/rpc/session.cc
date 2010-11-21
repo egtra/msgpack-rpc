@@ -69,20 +69,20 @@ future session_impl::send_request_impl(msgid_t msgid, auto_vreflife vbuf)
 	return future(f);
 }
 
-void session_impl::send_notify_impl(sbuffer* sbuf)
-{
-	m_tran->send_data(sbuf);
-}
-
-void session_impl::send_notify_impl(auto_vreflife vbuf)
-{
-	m_tran->send_data(vbuf);
-}
+//void session_impl::send_notify_impl(sbuffer* sbuf)
+//{
+//	m_tran->send_data(sbuf);
+//}
+//
+//void session_impl::send_notify_impl(auto_vreflife vbuf)
+//{
+//	m_tran->send_data(vbuf);
+//}
 
 msgid_t session_impl::next_msgid()
 {
 	// FIXME __sync_add_and_fetch
-	return __sync_add_and_fetch(&m_msgid_rr, 1);
+	return InterlockedIncrement(&m_msgid_rr);
 }
 
 
@@ -101,13 +101,14 @@ void session_impl::step_timeout()
 
 void session_impl::on_connect_failed()
 {
-	std::vector<shared_future> all;
-	m_reqtable.take_all(&all);
-	for(std::vector<shared_future>::iterator it(all.begin()),
-			it_end(all.end()); it != it_end; ++it) {
-		shared_future& f = *it;
-		f->set_result(object(), CONNECT_ERROR, auto_zone());
-	}
+	assert(0);
+	//std::vector<shared_future> all;
+	//m_reqtable.take_all(&all);
+	//for(std::vector<shared_future>::iterator it(all.begin()),
+	//		it_end(all.end()); it != it_end; ++it) {
+	//	shared_future& f = *it;
+	//	f->set_result(object(), CONNECT_ERROR, auto_zone());
+	//}
 }
 
 void session_impl::on_response(msgid_t msgid,
@@ -123,20 +124,20 @@ void session_impl::on_response(msgid_t msgid,
 }
 
 
-const address& session::get_address() const
-	{ return m_pimpl->get_address(); }
-
-const loop& session::get_loop() const
-	{ return const_cast<const session_impl*>(m_pimpl.get())->get_loop(); }
+//const address& session::get_address() const
+//	{ return m_pimpl->get_address(); }
+//
+//const loop& session::get_loop() const
+//	{ return const_cast<const session_impl*>(m_pimpl.get())->get_loop(); }
 
 loop session::get_loop()
 	{ return m_pimpl->get_loop(); }
 
-void session::set_timeout(unsigned int sec)
-	{ m_pimpl->set_timeout(sec); }
-
-unsigned int session::get_timeout() const
-	{ return m_pimpl->get_timeout(); }
+//void session::set_timeout(unsigned int sec)
+//	{ m_pimpl->set_timeout(sec); }
+//
+//unsigned int session::get_timeout() const
+//	{ return m_pimpl->get_timeout(); }
 
 future session::send_request_impl(msgid_t msgid, std::auto_ptr<with_shared_zone<vrefbuffer> > vbuf)
 	{ return m_pimpl->send_request_impl(msgid, vbuf); }
@@ -144,11 +145,11 @@ future session::send_request_impl(msgid_t msgid, std::auto_ptr<with_shared_zone<
 future session::send_request_impl(msgid_t msgid, sbuffer* sbuf)
 	{ return m_pimpl->send_request_impl(msgid, sbuf); }
 
-void session::send_notify_impl(sbuffer* sbuf)
-	{ return m_pimpl->send_notify_impl(sbuf); }
-
-void session::send_notify_impl(std::auto_ptr<with_shared_zone<vrefbuffer> > vbuf)
-	{ return m_pimpl->send_notify_impl(vbuf); }
+//void session::send_notify_impl(sbuffer* sbuf)
+//	{ return m_pimpl->send_notify_impl(sbuf); }
+//
+//void session::send_notify_impl(std::auto_ptr<with_shared_zone<vrefbuffer> > vbuf)
+//	{ return m_pimpl->send_notify_impl(vbuf); }
 
 msgid_t session::next_msgid()
 	{ return m_pimpl->next_msgid(); }

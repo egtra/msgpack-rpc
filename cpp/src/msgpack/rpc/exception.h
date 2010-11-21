@@ -78,7 +78,7 @@ struct remote_error : rpc_error {
 	remote_error(const std::string& msg, future f) :
 		rpc_error(msg), m_future(f) {}
 
-	~remote_error() throw() try { } catch(...) { }
+//	~remote_error() throw() try { } catch(...) { }
 
 	object result() const { return m_future.result(); }
 	object error() const { return m_future.error(); }

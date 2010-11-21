@@ -26,7 +26,7 @@
 namespace msgpack {
 namespace rpc {
 
-
+typedef ::msgpack::rpc::auto_zone auto_zone;
 class future {
 public:
 	future() { }

@@ -1,0 +1,279 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files\cclog">
+      <UniqueIdentifier>{9b6d8645-533c-4fcf-918d-8c91ccc4d067}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\cclog">
+      <UniqueIdentifier>{dfd984c9-301e-46b7-b2f8-f74d1e45ba12}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\msgpack-rpc">
+      <UniqueIdentifier>{1d01710b-33c2-40e0-9894-5333eec5de46}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\msgpack-rpc">
+      <UniqueIdentifier>{9f495ac0-032c-491e-9dc7-385a765c7a5d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\msgpack-rpc\transport">
+      <UniqueIdentifier>{fc9cae4a-35c2-409e-a1d7-44d8fa9569ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\mp">
+      <UniqueIdentifier>{05494f2c-9d53-4f91-ab56-689c6940d62c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\mp">
+      <UniqueIdentifier>{dd8bc8ce-5675-4098-b881-765db8ebd7a7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\mp-include">
+      <UniqueIdentifier>{8a718d44-8c66-4480-bab2-ed28bb67880a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\msgpack-rpc\transport">
+      <UniqueIdentifier>{36aad2f1-f1c7-4b48-a705-cf1e1d9234ce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\windows-src">
+      <UniqueIdentifier>{8e995fda-7aa6-4fdb-90fc-5d8458ff183b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\windows-src">
+      <UniqueIdentifier>{82cba67c-c5c9-4568-bde7-d541041f8a16}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="targetver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\cclog\cclog.h">
+      <Filter>Header Files\cclog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\cclog\cclog_tty.h">
+      <Filter>Header Files\cclog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\cclog\cclog_null.h">
+      <Filter>Header Files\cclog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\cclog\cclog_ostream.h">
+      <Filter>Header Files\cclog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\cclog\cclog_syslog.h">
+      <Filter>Header Files\cclog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\transport\base.h">
+      <Filter>Header Files\msgpack-rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\transport\unix.h">
+      <Filter>Header Files\msgpack-rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\transport\tcp.h">
+      <Filter>Header Files\msgpack-rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\transport\udp.h">
+      <Filter>Header Files\msgpack-rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\session_pool_impl.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\address.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\caller.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\client.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\exception.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\exception_impl.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\future.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\future_impl.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\impl_fwd.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\loop.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\loop_util.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\message_sendable.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\protocol.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\reqtable.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\request.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\request_impl.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\server.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\server_impl.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\session.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\session_impl.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\session_pool.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\version.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\transport.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\transport_impl.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\msgpack\rpc\types.h">
+      <Filter>Header Files\msgpack-rpc</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\mp\wavy_timer.h">
+      <Filter>Header Files\mp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\mp\wavy_loop.h">
+      <Filter>Header Files\mp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\mp\wavy_out.h">
+      <Filter>Header Files\mp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\iocploop.h">
+      <Filter>Header Files\windows-src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\exception.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\functional.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\memory.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\object_delete.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\pthread.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\sync.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\unordered.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\unordered_map.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\unordered_set.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\utilize.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\mp\wavy.h">
+      <Filter>Header Files\mp-include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\mp\wavy_connect.cc">
+      <Filter>Source Files\mp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\mp\wavy_timer.cc">
+      <Filter>Source Files\mp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\mp\wavy_loop.cc">
+      <Filter>Source Files\mp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\mp\wavy_out.cc">
+      <Filter>Source Files\mp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\address.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\cclog\cclog.cc">
+      <Filter>Source Files\cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\cclog\cclog_tty.cc">
+      <Filter>Source Files\cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\cclog\cclog_null.cc">
+      <Filter>Source Files\cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\cclog\cclog_ostream.cc">
+      <Filter>Source Files\cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\cclog\cclog_syslog.cc">
+      <Filter>Source Files\cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\session_pool.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\client.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\exception.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\future.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\reqtable.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\request.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\server.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\session.cc">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\transport\tcp.cc">
+      <Filter>Source Files\msgpack-rpc\transport</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\transport\udp.cc">
+      <Filter>Source Files\msgpack-rpc\transport</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\transport\unix.cc">
+      <Filter>Source Files\msgpack-rpc\transport</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\version.c">
+      <Filter>Source Files\msgpack-rpc</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\iocploop.cpp">
+      <Filter>Source Files\windows-src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

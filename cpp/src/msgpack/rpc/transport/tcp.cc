@@ -24,12 +24,6 @@
 #include <mp/utilize.h>
 #include <vector>
 
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-
-
 namespace msgpack {
 namespace rpc {
 namespace transport {
@@ -45,7 +39,7 @@ class server_transport;
 
 class client_socket : public stream_handler<client_socket> {
 public:
-	client_socket(int sock, client_transport* tran, session_impl* s);
+	client_socket(SOCKET sock, client_transport* tran, session_impl* s);
 	~client_socket();
 
 	void on_response(msgid_t msgid,
@@ -91,9 +85,9 @@ private:
 
 private:
 	void try_connect(sync_ref& lk_ref);
-	static void on_connect(int fd, int err, weak_session ws, client_transport* self);
-	void on_connect_success(int fd, sync_ref& ref);
-	void on_connect_failed(int fd, sync_ref& ref);
+	static void on_connect(SOCKET fd, int err, weak_session ws, client_transport* self);
+	void on_connect_success(SOCKET fd, sync_ref& ref);
+	void on_connect_failed(int err, sync_ref& ref);
 
 	friend class client_socket;
 	void on_close(client_socket* sock);
@@ -104,8 +98,8 @@ private:
 };
 
 
-client_socket::client_socket(int sock, client_transport* tran, session_impl* s) :
-	stream_handler<client_socket>(sock, s->get_loop_ref()),
+client_socket::client_socket(SOCKET sock, client_transport* tran, session_impl* s) :
+	stream_handler<client_socket>(sock, s->get_loop()),
 	m_tran(tran), m_session(s->shared_from_this()) { }
 
 client_socket::~client_socket()
@@ -149,61 +143,59 @@ client_transport::~client_transport()
 	}
 }
 
-inline void client_transport::on_connect_success(int fd, sync_ref& ref)
+inline void client_transport::on_connect_success(SOCKET fd, sync_ref& ref)
 {
 	LOG_DEBUG("connect success to ",m_session->get_address()," fd=",fd);
 
-	mp::shared_ptr<client_socket> cs =
-		m_session->get_loop_ref()->add_handler<client_socket>(fd, this, m_session);
+	mp::shared_ptr<client_socket> cs(new client_socket(fd, this, m_session));
+	cs->async_read();
+//	mp::shared_ptr<client_socket> cs =
+//		m_session->get_loop()->add_handler<client_socket>(fd, this, m_session);
 
 	ref->sockpool.push_back(cs.get());
 
-	m_session->get_loop_ref()->commit(fd, &ref->pending_xf);
+	m_session->get_loop()->commit(fd, &ref->pending_xf);
 	ref->pending_xf.clear();
 
 	ref->connecting = 0;
 }
 
 void client_transport::on_connect_failed(int err, sync_ref& ref)
-{
+{assert(0);
 	if(ref->connecting < m_reconnect_limit) {
-		LOG_WARN("connect to ",m_session->get_address()," failed, retrying: ",strerror(err));
-		try_connect(ref);
-		++ref->connecting;
+//		LOG_WARN("connect to ",m_session->get_address()," failed, retrying: ",strerror(err));
+//		try_connect(ref);
+//		++ref->connecting;
 		return;
 	}
 
-	LOG_WARN("connect to ",m_session->get_address()," failed, abort: ",strerror(err));
-	ref->connecting = 0;
-	ref->pending_xf.clear();
+//	LOG_WARN("connect to ",m_session->get_address()," failed, abort: ",strerror(err));
+	//ref->connecting = 0;
+	//ref->pending_xf.clear();
 
 	ref.reset();
 	m_session->on_connect_failed();
 }
 
-void client_transport::on_connect(int fd, int err, weak_session ws, client_transport* self)
+void client_transport::on_connect(SOCKET fd, int err, weak_session ws, client_transport* self)
 {
 	shared_session s = ws.lock();
 	if(!s) {
 		if(fd >= 0) {
-			::close(fd);
+			::closesocket(fd);
 		}
 		return;
 	}
 
-	// FIXME
-	int on = 1;
-	::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
-
 	sync_ref ref(self->m_sync);
 
-	if(fd >= 0) {
+	if(fd != INVALID_SOCKET) {
 		// success
 		try {
 			self->on_connect_success(fd, ref);
 			return;
 		} catch (...) {
-			::close(fd);
+			::closesocket(fd);
 			LOG_WARN("attach failed or send pending failed");
 		}
 	}
@@ -217,12 +209,13 @@ void client_transport::try_connect(sync_ref& lk_ref)
 
 	LOG_INFO("connecting to ",addr);
 
-	char addrbuf[addr.get_addrlen()];
-	addr.get_addr((sockaddr*)addrbuf);
+	//char addrbuf[addr.get_addrlen()];
+	sockaddr_storage addrbuf;
+	addr.get_addr((sockaddr*)&addrbuf);
 
-	m_session->get_loop_ref()->connect(
+	m_session->get_loop()->connect(
 			PF_INET, SOCK_STREAM, 0,
-			(sockaddr*)addrbuf, sizeof(addrbuf),
+			(sockaddr*)&addrbuf, addr.get_addrlen(),
 			m_connect_timeout,
 			mp::bind(
 				&client_transport::on_connect,
@@ -241,22 +234,22 @@ void client_transport::on_close(client_socket* sock)
 	}
 }
 
+
 void client_transport::send_data(sbuffer* sbuf)
 {
-	// FIXME
-	if(!m_session->get_loop_ref()->is_running()) {
-		m_session->get_loop_ref()->run_nonblock();
-	}
-
 	sync_ref ref(m_sync);
 	if(ref->sockpool.empty()) {
 		if(ref->connecting == 0) {
 			try_connect(ref);
 			ref->connecting = 1;
 		}
-		ref->pending_xf.push_write(sbuf->data(), sbuf->size());
-		ref->pending_xf.push_finalize(&::free, sbuf->data());
-		sbuf->release();
+		//ref->pending_xf.push_write(sbuf->data(), sbuf->size());
+		//ref->pending_xf.push_finalize(&::free, sbuf->data());
+		//sbuf->release();
+
+		//connect‚ª“¯Šú‚ÅŽÀ‘•‚µ‚Ä‚¢‚éŠÔ‚ÌŽb’èˆ—
+		client_socket* sock = ref->sockpool[0];
+		sock->send_data(sbuf);
 	} else {
 		// FIXME pesudo connecting load balance
 		client_socket* sock = ref->sockpool[0];
@@ -265,151 +258,142 @@ void client_transport::send_data(sbuffer* sbuf)
 }
 
 void client_transport::send_data(auto_vreflife vbuf)
-{
-	// FIXME
-	if(!m_session->get_loop_ref()->is_running()) {
-		m_session->get_loop_ref()->run_nonblock();
-	}
-
-	sync_ref ref(m_sync);
-	if(ref->sockpool.empty()) {
-		if(ref->connecting == 0) {
-			try_connect(ref);
-			ref->connecting = 1;
-		}
-		ref->pending_xf.push_writev(vbuf->vector(), vbuf->vector_size());
-		ref->pending_xf.push_finalize(vbuf);
-	} else {
-		// FIXME pesudo connecting load balance
-		client_socket* sock = ref->sockpool[0];
-		sock->send_data(vbuf);
-	}
+{abort();
+//	sync_ref ref(m_sync);
+//	if(ref->sockpool.empty()) {
+//		if(ref->connecting == 0) {
+//			try_connect(ref);
+//			ref->connecting = 1;
+//		}
+//		ref->pending_xf.push_writev(vbuf->vector(), vbuf->vector_size());
+//		ref->pending_xf.push_finalize(vbuf);
+//	} else {
+//		// FIXME pesudo connecting load balance
+//		client_socket* sock = ref->sockpool[0];
+//		sock->send_data(vbuf);
+//	}
 }
 
 
-class server_socket : public stream_handler<server_socket> {
-public:
-	server_socket(int sock, shared_server svr);
-	~server_socket();
-
-	void on_request(
-			msgid_t msgid,
-			object method, object params, auto_zone z);
-
-	void on_notify(
-			object method, object params, auto_zone z);
-
-private:
-	weak_server m_svr;
-
-private:
-	server_socket();
-	server_socket(const server_socket&);
-};
-
-
-class server_transport : public rpc::server_transport {
-public:
-	server_transport(server_impl* svr, const address& addr);
-	~server_transport();
-
-	void close();
-
-	static void on_accept(int fd, int err, weak_server wsvr);
-
-private:
-	int m_lsock;
-	loop m_loop;
-
-private:
-	server_transport();
-	server_transport(const server_transport&);
-};
-
-
-server_socket::server_socket(int sock, shared_server svr) :
-	stream_handler<server_socket>(sock, svr->get_loop_ref()),
-	m_svr(svr) { }
-
-server_socket::~server_socket() { }
-
-void server_socket::on_request(
-		msgid_t msgid,
-		object method, object params, auto_zone z)
-{
-	shared_server svr = m_svr.lock();
-	if(!svr) {
-		throw closed_exception();
-	}
-	svr->on_request(get_response_sender(), msgid, method, params, z);
-}
-
-void server_socket::on_notify(
-		object method, object params, auto_zone z)
-{
-	shared_server svr = m_svr.lock();
-	if(!svr) {
-		throw closed_exception();
-	}
-	svr->on_notify(method, params, z);
-}
-
-
-server_transport::server_transport(server_impl* svr, const address& addr) :
-	m_lsock(-1), m_loop(svr->get_loop_ref())
-{
-	char addrbuf[addr.get_addrlen()];
-	addr.get_addr((sockaddr*)addrbuf);
-
-	m_lsock = m_loop->listen(
-			PF_INET, SOCK_STREAM, 0,
-			(sockaddr*)addrbuf, sizeof(addrbuf),
-			mp::bind(
-				&server_transport::on_accept,
-				_1, _2,
-				weak_server(mp::static_pointer_cast<server_impl>(svr->shared_from_this()))
-				));
-}
-
-server_transport::~server_transport()
-{
-	close();
-}
-
-void server_transport::close()
-{
-	if(m_lsock >= 0) {
-		m_loop->remove_handler(m_lsock);
-		m_lsock = -1;
-	}
-	// FIXME m_sock->remove_handler();
-}
-
-void server_transport::on_accept(int fd, int err, weak_server wsvr)
-{
-	shared_server svr = wsvr.lock();
-	if(!svr) {
-		return;
-	}
-
-	// FIXME
-	if(fd < 0) {
-		LOG_DEBUG("accept failed");
-		return;
-	}
-	LOG_TRACE("accepted fd=",fd);
-
-	// FIXME
-	int on = 1;
-	::setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
-
-	try {
-		svr->get_loop_ref()->add_handler<server_socket>(fd, svr);
-	} catch (...) {
-		::close(fd);
-		throw;
-	}
-}
+//class server_socket : public stream_handler<server_socket> {
+//public:
+//	server_socket(int sock, shared_server svr);
+//	~server_socket();
+//
+//	void on_request(
+//			msgid_t msgid,
+//			object method, object params, auto_zone z);
+//
+//	void on_notify(
+//			object method, object params, auto_zone z);
+//
+//private:
+//	weak_server m_svr;
+//
+//private:
+//	server_socket();
+//	server_socket(const server_socket&);
+//};
+//
+//
+//class server_transport : public rpc::server_transport {
+//public:
+//	server_transport(server_impl* svr, const address& addr);
+//	~server_transport();
+//
+//	void close();
+//
+//	static void on_accept(int fd, int err, weak_server wsvr);
+//
+//private:
+//	int m_lsock;
+//	loop m_loop;
+//
+//private:
+//	server_transport();
+//	server_transport(const server_transport&);
+//};
+//
+//
+//server_socket::server_socket(int sock, shared_server svr) :
+//	stream_handler<server_socket>(sock, svr->get_loop()),
+//	m_svr(svr) { }
+//
+//server_socket::~server_socket() { }
+//
+//void server_socket::on_request(
+//		msgid_t msgid,
+//		object method, object params, auto_zone z)
+//{
+//	shared_server svr = m_svr.lock();
+//	if(!svr) {
+//		throw closed_exception();
+//	}
+//	svr->on_request(get_response_sender(), msgid, method, params, z);
+//}
+//
+//void server_socket::on_notify(
+//		object method, object params, auto_zone z)
+//{
+//	shared_server svr = m_svr.lock();
+//	if(!svr) {
+//		throw closed_exception();
+//	}
+//	svr->on_notify(method, params, z);
+//}
+//
+//
+//server_transport::server_transport(server_impl* svr, const address& addr) :
+//	m_lsock(-1), m_loop(svr->get_loop())
+//{
+//	char addrbuf[addr.get_addrlen()];
+//	addr.get_addr((sockaddr*)addrbuf);
+//
+//	m_lsock = m_loop->listen(
+//			PF_INET, SOCK_STREAM, 0,
+//			(sockaddr*)addrbuf, sizeof(addrbuf),
+//			mp::bind(
+//				&server_transport::on_accept,
+//				_1, _2,
+//				weak_server(mp::static_pointer_cast<server_impl>(svr->shared_from_this()))
+//				));
+//}
+//
+//server_transport::~server_transport()
+//{
+//	close();
+//}
+//
+//void server_transport::close()
+//{
+//	if(m_lsock >= 0) {
+//		m_loop->remove_handler(m_lsock);
+//		m_lsock = -1;
+//	}
+//	// FIXME m_sock->remove_handler();
+//}
+//
+//void server_transport::on_accept(int fd, int err, weak_server wsvr)
+//{
+//	shared_server svr = wsvr.lock();
+//	if(!svr) {
+//		return;
+//	}
+//
+//	// FIXME
+//	if(fd < 0) {
+//		LOG_DEBUG("accept failed");
+//		return;
+//	}
+//	LOG_TRACE("accepted fd=",fd);
+//
+//	try {
+//		svr->get_loop()->add_handler<server_socket>(fd, svr);
+//	} catch (...) {
+//		::close(fd);
+//		throw;
+//	}
+//}
 
 
 }  // noname namespace
@@ -432,19 +416,19 @@ std::auto_ptr<client_transport> tcp_builder::build(session_impl* s, const addres
 }
 
 
-tcp_listener::tcp_listener(const std::string& host, uint16_t port) :
-	m_addr(ip_address(host, port)) { }
-
-tcp_listener::tcp_listener(const address& addr) :
-	m_addr(addr) { }
-
-tcp_listener::~tcp_listener() { }
-
-std::auto_ptr<server_transport> tcp_listener::listen(server_impl* svr) const
-{
-	return std::auto_ptr<server_transport>(
-			new transport::tcp::server_transport(svr, m_addr));
-}
+//tcp_listener::tcp_listener(const std::string& host, uint16_t port) :
+//	m_addr(ip_address(host, port)) { }
+//
+//tcp_listener::tcp_listener(const address& addr) :
+//	m_addr(addr) { }
+//
+//tcp_listener::~tcp_listener() { }
+//
+//std::auto_ptr<server_transport> tcp_listener::listen(server_impl* svr) const
+//{
+//	return std::auto_ptr<server_transport>(
+//			new transport::tcp::server_transport(svr, m_addr));
+//}
 
 
 }  // namespace rpc
