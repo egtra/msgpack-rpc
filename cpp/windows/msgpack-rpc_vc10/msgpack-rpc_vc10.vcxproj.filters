@@ -201,6 +201,9 @@
     <ClInclude Include="..\src\mp\wavy.h">
       <Filter>Header Files\mp-include</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\cclog\cclog_debugoutput.h">
+      <Filter>Header Files\cclog</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -274,6 +277,9 @@
     </ClCompile>
     <ClCompile Include="..\src\iocploop.cpp">
       <Filter>Source Files\windows-src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\cclog\cclog_debugoutput.cc">
+      <Filter>Source Files\cclog</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>
