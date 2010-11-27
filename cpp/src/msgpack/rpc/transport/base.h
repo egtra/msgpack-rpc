@@ -388,11 +388,11 @@ try {
 
 	async_read();
 
-} catch(msgpack::type_error& ex) {
+} catch(msgpack::type_error&) {
 	LOG_WARN("connection: type error");
 //	e.remove();
 	return;
-} catch(closed_exception& ex) {
+} catch(closed_exception&) {
 //	e.remove();
 	return;
 } catch(std::exception& ex) {

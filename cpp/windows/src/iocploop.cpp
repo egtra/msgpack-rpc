@@ -15,6 +15,30 @@ namespace windows {
 
 using mp::timespec;
 
+namespace {
+
+	typedef std::pair<mp::function<void (bool)>, HANDLE> wait_callback_object;
+
+	void CALLBACK wait_callback(void* parameter, BOOLEAN timer_or_wait_fired)
+	{
+		std::auto_ptr<wait_callback_object> p(static_cast<wait_callback_object*>(parameter));
+		::PostQueuedCompletionStatus(p->second, 0, 0, new overlapped_callback(mp::bind(p->first, timer_or_wait_fired != FALSE)));
+	}
+
+	unique_wait_handle register_wait_for_single_object(HANDLE hiocp, HANDLE hobject, mp::function<void (bool)> callback, ULONG milliseconds, ULONG flags)
+	{
+		HANDLE hwait;
+		std::auto_ptr<wait_callback_object> p(new wait_callback_object(callback, hiocp));
+		if(::RegisterWaitForSingleObject(&hwait, hobject, wait_callback, p.get(), milliseconds, flags)) {
+			p.release();
+			return unique_wait_handle(hwait);
+		} else {
+			throw mp::system_error(GetLastError(), "RegisterWaitForSingleobject failed");
+		}
+	}
+
+}
+
 // wavy_out.h
 
 struct kernel_mixin {
@@ -83,6 +107,7 @@ private:
 
 class loop_impl {
 public:
+	unique_handle hiocp;
 	loop_impl(mp::function<void ()> thread_init_func = mp::function<void ()>());
 	~loop_impl();
 
@@ -138,29 +163,29 @@ public:
 	//inline void event_remove(kernel::event ke);
 
 private:
-	volatile size_t m_off;
-	volatile size_t m_num;
-	volatile bool m_pollable;
+	//volatile size_t m_off;
+	//volatile size_t m_num;
+	//volatile bool m_pollable;
 //	volatile pthread_t m_poll_thread;  // FIXME signal_stop
 
 //	kernel::backlog m_backlog;
 
-	shared_handler* m_state;
+//	shared_handler* m_state;
 
 //	kernel m_kernel;
 
-	pthread_mutex m_mutex;
-	pthread_cond m_cond;
+//	pthread_mutex m_mutex;
+//	pthread_cond m_cond;
 
 	typedef std::queue<task_t> task_queue_t;
-	task_queue_t m_task_queue;
+//	task_queue_t m_task_queue;
 
 //	typedef std::queue<kernel::event> more_queue_t;
 //	more_queue_t m_more_queue;
 
 	mp::function<void ()> m_thread_init_func;
 
-	pthread_cond m_flush_cond;
+//	pthread_cond m_flush_cond;
 
 private:
 	mp::shared_ptr<out> m_out;
@@ -171,6 +196,8 @@ private:
 
 	typedef std::vector<pthread_thread> workers_t;
 	workers_t m_workers;
+
+	static const ULONG_PTR COMPLATE_KEY_END = 1;
 
 private:
 	loop_impl(const loop_impl&);
@@ -391,6 +418,7 @@ bool xfer_impl::execute(SOCKET fd, char* head, char** tail)
 			}
 #elif defined(_WIN32)
 			int wl = 0;
+			assert(false);
 			return false;
 #else
 			off_t sbytes = 0;
@@ -808,10 +836,11 @@ void loop::write(SOCKET fd,
 
 // wavy_loop.cc
 
-loop_impl::loop_impl(mp::function<void ()> thread_init_func)/* :
+loop_impl::loop_impl(mp::function<void ()> thread_init_func) :/*
 	m_off(0), m_num(0), m_pollable(true),
-	m_thread_init_func(thread_init_func),
-	m_end_flag(false)*/
+	m_thread_init_func(thread_init_func),*/
+	m_end_flag(false),
+	hiocp(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 8))
 {
 	//m_state = new shared_handler[m_kernel.max()];
 
@@ -825,7 +854,7 @@ loop_impl::loop_impl(mp::function<void ()> thread_init_func)/* :
 
 loop_impl::~loop_impl()
 {
-	//end();
+	end();
 	//join();  // FIXME detached?
 	//{
 	//	pthread_scoped_lock lk(m_mutex);
@@ -834,24 +863,28 @@ loop_impl::~loop_impl()
 	//delete[] m_state;
 }
 
-//void loop_impl::end()
-//{
-//	m_end_flag = true;
-//	{
+void loop_impl::end()
+{
+	m_end_flag = true;
+	{
 //		pthread_scoped_lock lk(m_mutex);
 //		m_cond.broadcast();
-////		if(m_poll_thread) {  // FIXME signal_stop
-////			pthread_kill(m_poll_thread, SIGALRM);
-////		}
-//	}
-//}
-//
-//bool loop_impl::is_end() const
-//{
-//	return m_end_flag;
-//}
-//
-//
+//		if(m_poll_thread) {  // FIXME signal_stop
+//			pthread_kill(m_poll_thread, SIGALRM);
+//		}
+		// need lock
+		for (size_t i = 0; i < m_workers.size(); ++i) {
+			::PostQueuedCompletionStatus(hiocp.get(), 0, COMPLATE_KEY_END, 0);
+		}
+	}
+}
+
+bool loop_impl::is_end() const
+{
+	return m_end_flag;
+}
+
+
 //void loop_impl::join()
 //{
 //	for(workers_t::iterator it(m_workers.begin());
@@ -860,51 +893,52 @@ loop_impl::~loop_impl()
 //	}
 //	m_workers.clear();
 //}
-//
-//void loop_impl::detach()
-//{
-//	for(workers_t::iterator it(m_workers.begin());
-//			it != m_workers.end(); ++it) {
-//		it->detach();
-//	}
-//}
-//
-//
-//void loop_impl::start(size_t num)
-//{
+
+void loop_impl::detach()
+{
+	for(workers_t::iterator it(m_workers.begin());
+			it != m_workers.end(); ++it) {
+		it->detach();
+	}
+}
+
+
+void loop_impl::start(size_t num)
+{
 //	pthread_scoped_lock lk(m_mutex);
-//	if(is_running()) {
-//		// FIXME exception
-//		throw std::runtime_error("loop is already running");
-//	}
-//	add_thread(num);
-//}
-//
-//void loop_impl::add_thread(size_t num)
-//{
-//	for(size_t i=0; i < num; ++i) {
-//		m_workers.push_back( pthread_thread() );
-//		try {
-//			m_workers.back().run(
-//					bind(&loop_impl::thread_main, this));
-//		} catch (...) {
-//			m_workers.pop_back();
-//			throw;
-//		}
-//	}
-//}
-//
-//bool loop_impl::is_running() const
-//{
-//	return !m_workers.empty();
-//}
-//
-//void loop_impl::submit_impl(task_t& f)
-//{
-//	pthread_scoped_lock lk(m_mutex);
-//	m_task_queue.push(f);
-//	m_cond.signal();
-//}
+	if(is_running()) {
+		// FIXME exception
+		throw std::runtime_error("loop is already running");
+	}
+	add_thread(num);
+}
+
+void loop_impl::add_thread(size_t num)
+{
+	for(size_t i=0; i < num; ++i) {
+		m_workers.push_back( pthread_thread() );
+		try {
+			m_workers.back().run(
+					mp::bind(&loop_impl::thread_main, this));
+		} catch (...) {
+			m_workers.pop_back();
+			throw;
+		}
+	}
+}
+
+bool loop_impl::is_running() const
+{
+	return !m_workers.empty();
+}
+
+void loop_impl::submit_impl(task_t& f)
+{
+	//pthread_scoped_lock lk(m_mutex);
+	//m_task_queue.push(f);
+	//m_cond.signal();
+	::PostQueuedCompletionStatus(hiocp.get(), 0, 0, new overlapped_callback(mp::bind(f)));
+}
 
 
 //shared_ptr<basic_handler> loop_impl::add_handler_impl(shared_ptr<basic_handler> sh)
@@ -1060,14 +1094,66 @@ loop_impl::~loop_impl()
 //
 //	}  // while(true)
 //}
-//
-//
+void loop_impl::thread_main()
+{
+	while(true) {
+		DWORD transferred;
+		ULONG_PTR key;
+		OVERLAPPED* poverlapped;
+		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, INFINITE);
+		DWORD lastError = GetLastError();
+		if(!ret) {
+			throw mp::system_error(lastError, "GetQueuedCompletionStatus");
+		}
+
+		if(key == COMPLATE_KEY_END) {
+			break;
+		}
+
+		if(poverlapped != NULL) {
+			std::auto_ptr<overlapped_callback> oc(static_cast<overlapped_callback*>(poverlapped));
+			if (oc->callback) {
+				oc->callback(*poverlapped, transferred);
+			}
+		}
+	}
+}
+
 //inline void loop_impl::run_once()
 //{
 //	pthread_scoped_lock lk(m_mutex);
 //	run_once(lk);
 //}
-//
+inline void loop_impl::run_once()
+{
+	while(true) {
+		DWORD transferred;
+		ULONG_PTR key;
+		OVERLAPPED* poverlapped;
+		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, 0);
+		DWORD lastError = GetLastError();
+		if(!ret) {
+			if (lastError == WAIT_TIMEOUT) {
+				break;
+			} else {
+				throw mp::system_error(lastError, "GetQueuedCompletionStatus");
+			}
+		}
+
+		if(key == COMPLATE_KEY_END) {
+			PostQueuedCompletionStatus(hiocp.get(), 0, COMPLATE_KEY_END, 0);
+			break;
+		}
+
+		if(poverlapped != NULL) {
+			std::auto_ptr<overlapped_callback> oc(static_cast<overlapped_callback*>(poverlapped));
+			if (oc->callback) {
+				oc->callback(*poverlapped, transferred);
+			}
+		}
+	}
+}
+
 //void loop_impl::run_once(pthread_scoped_lock& lk)
 //{
 //	if(m_end_flag) { return; }
@@ -1225,7 +1311,7 @@ void event::remove()
 }
 
 
-loop::loop() : m_impl(new loop_impl()), hiocp(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 8)) { }
+loop::loop() : m_impl(new loop_impl()) { }
 
 loop::~loop() { delete ANON_impl; }
 
@@ -1234,49 +1320,17 @@ loop::~loop() { delete ANON_impl; }
 //	start(num);
 //	join();
 //}
-//
-//void loop::start(size_t num)
-//	{ ANON_impl->start(num); }
+
+void loop::start(size_t num)
+	{ ANON_impl->start(num); }
 
 bool loop::is_running() const
 //	{ return ANON_impl->is_running(); }
 	{ return false; }
 
-//void loop::run_once()
-//	{ ANON_impl->run_once(); }
-//
-
 void loop::run_once()
-{
-	for (;;)
-	{
-		DWORD transferred;
-		ULONG_PTR key;
-		OVERLAPPED* poverlapped;
-		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, 0);
-		DWORD lastError = GetLastError();
-		if (!ret)
-		{
-			if (lastError == WAIT_TIMEOUT)
-			{
-				break;
-			}
-			else
-			{
-				throw mp::system_error(lastError, "GetQueuedCompletionStatus");
-			}
-		}
+	{ ANON_impl->run_once(); }
 
-		if (poverlapped != NULL)
-		{
-			overlapped_callback* oc = static_cast<overlapped_callback*>(poverlapped);
-			if (oc->callback)
-			{
-				oc->callback(*poverlapped, transferred);
-			}
-		}
-	}
-}
 
 //void loop::end()
 //	{ ANON_impl->end(); }
@@ -1299,9 +1353,9 @@ void loop::run_once()
 //void loop::remove_handler(SOCKET fd)
 //	{ ANON_impl->remove_handler(fd); }
 
-//void loop::submit_impl(task_t f)
-//	{ ANON_impl->submit_impl(f); }
-//
+void loop::submit_impl(task_t f)
+	{ ANON_impl->submit_impl(f); }
+
 //void loop::flush()
 //	{ ANON_impl->flush(); }
 
@@ -1392,7 +1446,7 @@ int loop::add_timer(double value_sec, double interval_sec,
 	//		return add_timer(NULL, (const timespec*)NULL, callback);
 	//	}
 	//}
-	timers.push_back(std::make_shared<timer>(hiocp.get(), value_sec, interval_sec, callback));
+	timers.push_back(std::make_shared<timer>(ANON_impl->hiocp.get(), value_sec, interval_sec, callback));
 	return 0; // TODO: –ß‚è’l‚ð’¼‚·
 }
 
@@ -1743,7 +1797,7 @@ void loop::connect(
 		goto out_;
 	}
 
-	if (::CreateIoCompletionPort(reinterpret_cast<HANDLE>(fd), hiocp.get(), 0, 0) == NULL) {
+	if (::CreateIoCompletionPort(reinterpret_cast<HANDLE>(fd), ANON_impl->hiocp.get(), 0, 0) == NULL) {
 		err = GetLastError();
 		goto error;
 	}
@@ -1808,6 +1862,143 @@ error:
 
 out_:
 	callback(fd, err);
+}
+
+// wavy_listen.cc
+
+//namespace {
+//
+//
+//class listen_handler : public handler {
+//public:
+//	typedef loop::listen_callback_t listen_callback_t;
+//
+//	listen_handler(int fd, listen_callback_t callback) :
+//		handler(fd), m_callback(callback) { }
+//
+//	~listen_handler() { }
+//
+//	void on_read(event& e)
+//	{
+//		while(true) {
+//			int err = 0;
+//			int sock = ::accept(fd(), NULL, NULL);
+//			if(sock < 0) {
+//				if(errno == EAGAIN || errno == EINTR) {
+//					return;
+//				}
+//				err = errno;
+//
+//				m_callback(sock, err);
+//
+//				throw system_error(errno, "accept failed");
+//			}
+//
+//			try {
+//				m_callback(sock, err);
+//			} catch (...) {
+//				::close(sock);
+//			}
+//		}
+//	}
+//
+//private:
+//	listen_callback_t m_callback;
+//
+//private:
+//	listen_handler();
+//	listen_handler(const listen_handler&);
+//};
+//
+//
+//}  // noname namespace
+
+namespace {
+
+void on_accept(SOCKET s, loop::listen_callback_t callback, HANDLE hiocp)
+{
+	while(true) {
+		SOCKET sock = ::accept(s, NULL, NULL);
+		if(sock == INVALID_SOCKET) {
+			DWORD err = ::WSAGetLastError();
+			if(err == WSAEWOULDBLOCK) {
+				return;
+			} 
+			callback(sock, err);
+			throw mp::system_error(err, "accept failed");
+		}
+
+		if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(sock), hiocp, 0, 0) == NULL) {
+			::closesocket(sock);
+			DWORD err = GetLastError();
+			callback(sock, err);
+			throw mp::system_error(err, "CreateIoCompletionPort failed");
+		}
+
+		try {
+			callback(sock, 0);
+		} catch(...) {
+			::closesocket(sock);
+		}
+	}
+}
+
+struct listen_socket {
+	unique_handle m_hevent;
+	unique_wait_handle m_hwait;
+	SOCKET m_lsock;
+
+	listen_socket(unique_handle&& hevent, unique_wait_handle&& hwait, SOCKET s) :
+		m_hevent(std::move(hevent)), m_hwait(std::move(hwait)), m_lsock(s) {
+	}
+
+	~listen_socket()
+	{
+		::closesocket(m_lsock);
+	}
+};
+
+}  // noname namespace
+
+mp::shared_ptr<SOCKET> loop::listen(
+		int socket_family, int socket_type, int protocol,
+		const sockaddr* addr, socklen_t addrlen,
+		listen_callback_t callback,
+		int backlog)
+{
+	SOCKET lsock = ::socket(socket_family, socket_type, protocol);
+	if(lsock == INVALID_SOCKET) {
+		throw mp::system_error(errno, "socket() failed");
+	}
+
+	BOOL on = TRUE;
+	if(::setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&on), sizeof(on)) != 0) {
+		::closesocket(lsock);
+		throw mp::system_error(WSAGetLastError(), "setsockopt failed");
+	}
+	
+	if(::bind(lsock, addr, addrlen) != 0) {
+		::closesocket(lsock);
+		throw mp::system_error(WSAGetLastError(), "bind failed");
+	}
+	
+	if(::listen(lsock, backlog) != 0) {
+		::closesocket(lsock);
+		throw mp::system_error(WSAGetLastError(), "listen failed");
+	}
+
+	try {
+//		add_handler<listen_handler>(lsock, callback);
+		unique_handle hevent(::CreateEvent(NULL, FALSE, FALSE, NULL));
+		unique_wait_handle hwait = register_wait_for_single_object(ANON_impl->hiocp.get(), hevent.get(), mp::bind(on_accept, lsock, callback, ANON_impl->hiocp.get()), INFINITE, WT_EXECUTEDEFAULT);
+		::WSAEventSelect(lsock, hevent.get(), FD_ACCEPT);
+		mp::shared_ptr<listen_socket> ls(std::make_shared<listen_socket>(std::move(hevent), std::move(hwait), lsock));
+		return mp::shared_ptr<SOCKET>(std::move(ls), &ls->m_lsock);
+
+	} catch (...) {
+		::closesocket(lsock);
+		throw;
+	}
 }
 
 }  // namespace windows

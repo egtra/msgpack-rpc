@@ -47,8 +47,7 @@ public:
 	{
 		DWORD threadId;
 		m_thread = CreateThread(NULL, 0, func, user, 0, &threadId);
-//		if(m_thread == NULL) { throw pthread_error(GetLastError(), "failed to create thread"); }
-		if(m_thread == NULL) { throw std::exception("failed to create thread"); }
+		if(m_thread == NULL) { throw pthread_error(GetLastError(), "failed to create thread"); }
 	}
 
 	void run(function_t func)

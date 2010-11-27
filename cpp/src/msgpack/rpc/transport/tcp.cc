@@ -275,125 +275,129 @@ void client_transport::send_data(auto_vreflife vbuf)
 }
 
 
-//class server_socket : public stream_handler<server_socket> {
-//public:
-//	server_socket(int sock, shared_server svr);
-//	~server_socket();
-//
-//	void on_request(
-//			msgid_t msgid,
-//			object method, object params, auto_zone z);
-//
-//	void on_notify(
-//			object method, object params, auto_zone z);
-//
-//private:
-//	weak_server m_svr;
-//
-//private:
-//	server_socket();
-//	server_socket(const server_socket&);
-//};
-//
-//
-//class server_transport : public rpc::server_transport {
-//public:
-//	server_transport(server_impl* svr, const address& addr);
-//	~server_transport();
-//
-//	void close();
-//
-//	static void on_accept(int fd, int err, weak_server wsvr);
-//
-//private:
-//	int m_lsock;
-//	loop m_loop;
-//
-//private:
-//	server_transport();
-//	server_transport(const server_transport&);
-//};
-//
-//
-//server_socket::server_socket(int sock, shared_server svr) :
-//	stream_handler<server_socket>(sock, svr->get_loop()),
-//	m_svr(svr) { }
-//
-//server_socket::~server_socket() { }
-//
-//void server_socket::on_request(
-//		msgid_t msgid,
-//		object method, object params, auto_zone z)
-//{
-//	shared_server svr = m_svr.lock();
-//	if(!svr) {
-//		throw closed_exception();
-//	}
-//	svr->on_request(get_response_sender(), msgid, method, params, z);
-//}
-//
-//void server_socket::on_notify(
-//		object method, object params, auto_zone z)
-//{
-//	shared_server svr = m_svr.lock();
-//	if(!svr) {
-//		throw closed_exception();
-//	}
-//	svr->on_notify(method, params, z);
-//}
-//
-//
-//server_transport::server_transport(server_impl* svr, const address& addr) :
-//	m_lsock(-1), m_loop(svr->get_loop())
-//{
-//	char addrbuf[addr.get_addrlen()];
-//	addr.get_addr((sockaddr*)addrbuf);
-//
-//	m_lsock = m_loop->listen(
-//			PF_INET, SOCK_STREAM, 0,
-//			(sockaddr*)addrbuf, sizeof(addrbuf),
-//			mp::bind(
-//				&server_transport::on_accept,
-//				_1, _2,
-//				weak_server(mp::static_pointer_cast<server_impl>(svr->shared_from_this()))
-//				));
-//}
-//
-//server_transport::~server_transport()
-//{
-//	close();
-//}
-//
-//void server_transport::close()
-//{
-//	if(m_lsock >= 0) {
-//		m_loop->remove_handler(m_lsock);
-//		m_lsock = -1;
-//	}
-//	// FIXME m_sock->remove_handler();
-//}
-//
-//void server_transport::on_accept(int fd, int err, weak_server wsvr)
-//{
-//	shared_server svr = wsvr.lock();
-//	if(!svr) {
-//		return;
-//	}
-//
-//	// FIXME
-//	if(fd < 0) {
-//		LOG_DEBUG("accept failed");
-//		return;
-//	}
-//	LOG_TRACE("accepted fd=",fd);
-//
-//	try {
+class server_socket : public stream_handler<server_socket> {
+public:
+	server_socket(int sock, shared_server svr);
+	~server_socket();
+
+	void on_request(
+			msgid_t msgid,
+			object method, object params, auto_zone z);
+
+	void on_notify(
+			object method, object params, auto_zone z);
+
+private:
+	weak_server m_svr;
+
+private:
+	server_socket();
+	server_socket(const server_socket&);
+};
+
+
+class server_transport : public rpc::server_transport {
+public:
+	server_transport(server_impl* svr, const address& addr);
+	~server_transport();
+
+	void close();
+
+	static void on_accept(SOCKET fd, int err, weak_server wsvr, mp::shared_ptr<server_socket>& sock);
+
+private:
+	mp::shared_ptr<SOCKET> m_lsock;
+	loop m_loop;
+	mp::shared_ptr<server_socket> m_sock;
+
+private:
+	server_transport();
+	server_transport(const server_transport&);
+};
+
+
+server_socket::server_socket(int sock, shared_server svr) :
+	stream_handler<server_socket>(sock, svr->get_loop()),
+	m_svr(svr) { }
+
+server_socket::~server_socket() { }
+
+void server_socket::on_request(
+		msgid_t msgid,
+		object method, object params, auto_zone z)
+{
+	shared_server svr = m_svr.lock();
+	if(!svr) {
+		throw closed_exception();
+	}
+	svr->on_request(get_response_sender(), msgid, method, params, z);
+}
+
+void server_socket::on_notify(
+		object method, object params, auto_zone z)
+{
+	shared_server svr = m_svr.lock();
+	if(!svr) {
+		throw closed_exception();
+	}
+	svr->on_notify(method, params, z);
+}
+
+
+server_transport::server_transport(server_impl* svr, const address& addr) :
+	m_lsock(), m_loop(svr->get_loop())
+{
+	sockaddr_storage addrbuf;
+	addr.get_addr((sockaddr*)&addrbuf);
+
+	m_lsock = m_loop->listen(
+			PF_INET, SOCK_STREAM, 0,
+			(sockaddr*)&addrbuf, addr.get_addrlen(),
+			mp::bind(
+				&server_transport::on_accept,
+				_1, _2,
+				weak_server(mp::static_pointer_cast<server_impl>(svr->shared_from_this())),
+				std::ref(m_sock)
+				));
+}
+
+server_transport::~server_transport()
+{
+	close();
+}
+
+void server_transport::close()
+{
+	//if(m_lsock >= 0) {
+	//	m_loop->remove_handler(m_lsock);
+	//	m_lsock = -1;
+	//}
+	// FIXME m_sock->remove_handler();
+}
+
+void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::shared_ptr<server_socket>& sock)
+{
+	shared_server svr = wsvr.lock();
+	if(!svr) {
+		return;
+	}
+
+	// FIXME
+	if(fd < 0) {
+		LOG_DEBUG("accept failed");
+		return;
+	}
+	LOG_TRACE("accepted fd=",fd);
+
+	try {
 //		svr->get_loop()->add_handler<server_socket>(fd, svr);
-//	} catch (...) {
-//		::close(fd);
-//		throw;
-//	}
-//}
+		sock.reset(new server_socket(fd, svr));
+		sock->async_read();
+	} catch (...) {
+		::closesocket(fd);
+		throw;
+	}
+}
 
 
 }  // noname namespace
@@ -416,19 +420,19 @@ std::auto_ptr<client_transport> tcp_builder::build(session_impl* s, const addres
 }
 
 
-//tcp_listener::tcp_listener(const std::string& host, uint16_t port) :
-//	m_addr(ip_address(host, port)) { }
-//
-//tcp_listener::tcp_listener(const address& addr) :
-//	m_addr(addr) { }
-//
-//tcp_listener::~tcp_listener() { }
-//
-//std::auto_ptr<server_transport> tcp_listener::listen(server_impl* svr) const
-//{
-//	return std::auto_ptr<server_transport>(
-//			new transport::tcp::server_transport(svr, m_addr));
-//}
+tcp_listener::tcp_listener(const std::string& host, uint16_t port) :
+	m_addr(ip_address(host, port)) { }
+
+tcp_listener::tcp_listener(const address& addr) :
+	m_addr(addr) { }
+
+tcp_listener::~tcp_listener() { }
+
+std::auto_ptr<server_transport> tcp_listener::listen(server_impl* svr) const
+{
+	return std::auto_ptr<server_transport>(
+			new transport::tcp::server_transport(svr, m_addr));
+}
 
 
 }  // namespace rpc

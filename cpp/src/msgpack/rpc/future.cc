@@ -77,16 +77,16 @@ try {
 	LOG_WARN("response callback error: unknown error");
 }
 
-//void future_impl::attach_callback(callback_t func)
-//{
-//	mp::pthread_scoped_lock lk(m_mutex);
-//	m_callback = func;
-//	if(!m_session) {
-//		lk.unlock();
-//		m_loop->submit(&callback_real, m_callback,
-//				future(shared_from_this()));
-//	}
-//}
+void future_impl::attach_callback(callback_t func)
+{
+	mp::pthread_scoped_lock lk(m_mutex);
+	m_callback = func;
+	if(!m_session) {
+		lk.unlock();
+		m_loop->submit(&callback_real, m_callback,
+				future(shared_from_this()));
+	}
+}
 
 
 void future_impl::set_result(object result, object error, auto_zone z)
@@ -134,14 +134,14 @@ void future_impl::set_result(object result, object error, auto_zone z)
 //{
 //	return m_pimpl->error();
 //}
-//
-//future& future::attach_callback(
-//		mp::function<void (future)> func)
-//{
-//	m_pimpl->attach_callback(func);
-//	return *this;
-//}
-//
+
+future& future::attach_callback(
+		mp::function<void (future)> func)
+{
+	m_pimpl->attach_callback(func);
+	return *this;
+}
+
 //auto_zone& future::zone()
 //{
 //	return m_pimpl->zone();

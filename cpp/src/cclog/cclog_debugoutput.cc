@@ -10,7 +10,7 @@ cclog_debugoutput::~cclog_debugoutput()
 
 void cclog_debugoutput::log_impl(level lv, std::string& str)
 {
-	std::string output = str + "\r\n";
+	const std::string output = str + "\r\n";
 	OutputDebugStringA(output.c_str());
 }
 
