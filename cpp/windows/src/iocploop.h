@@ -248,8 +248,6 @@ private:
 
 	typedef mp::function<void ()> task_t;
 	void submit_impl(task_t f);
-	
-	void on_connect();
 
 	Concurrency::concurrent_vector<std::shared_ptr<timer>> timers;
 

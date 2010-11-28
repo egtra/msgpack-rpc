@@ -243,13 +243,9 @@ void client_transport::send_data(sbuffer* sbuf)
 			try_connect(ref);
 			ref->connecting = 1;
 		}
-		//ref->pending_xf.push_write(sbuf->data(), sbuf->size());
-		//ref->pending_xf.push_finalize(&::free, sbuf->data());
-		//sbuf->release();
-
-		//connect‚ª“¯Šú‚ÅŽÀ‘•‚µ‚Ä‚¢‚éŠÔ‚ÌŽb’èˆ—
-		client_socket* sock = ref->sockpool[0];
-		sock->send_data(sbuf);
+		ref->pending_xf.push_write(sbuf->data(), sbuf->size());
+		ref->pending_xf.push_finalize(&::free, sbuf->data());
+		sbuf->release();
 	} else {
 		// FIXME pesudo connecting load balance
 		client_socket* sock = ref->sockpool[0];
@@ -368,6 +364,8 @@ server_transport::~server_transport()
 
 void server_transport::close()
 {
+	m_lsock.reset();
+	m_sock.reset();
 	//if(m_lsock >= 0) {
 	//	m_loop->remove_handler(m_lsock);
 	//	m_lsock = -1;
@@ -383,7 +381,7 @@ void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::share
 	}
 
 	// FIXME
-	if(fd < 0) {
+	if(fd == INVALID_SOCKET) {
 		LOG_DEBUG("accept failed");
 		return;
 	}

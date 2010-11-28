@@ -3,6 +3,8 @@
 #include "mp/pthread.h"
 #include "iocploop.h"
 
+using namespace mp::placeholders;
+
 using mp::pthread_mutex;
 using mp::pthread_scoped_lock;
 using mp::pthread_cond;
@@ -1421,7 +1423,7 @@ private:
 static inline struct timespec sec2spec(double sec)
 {
 	struct timespec spec = {
-		sec, ((sec - (double)(time_t)sec) * 1e9) };
+		(time_t)sec, (long)((sec - (double)(time_t)sec) * 1e9) };
 	return spec;
 }
 
@@ -1783,13 +1785,42 @@ out:
 //			addr, addrlen, &timeout, callback);
 //}
 
+namespace {
+
+struct connect_info {
+	loop::connect_callback_t callback;
+	SOCKET sock;
+	HANDLE hwait;
+	unique_handle hevent;
+};
+
+void CALLBACK on_connect(void* parameter, BOOLEAN timeout)
+{
+	assert(parameter);
+	std::auto_ptr<connect_info> const info(static_cast<connect_info*>(parameter));
+	if(info.get()) {
+		if(timeout) {
+			::closesocket(info->sock);
+			info->callback(INVALID_SOCKET, WSAETIMEDOUT);
+		} else {
+			info->callback(info->sock, 0);
+		}
+
+		volatile HANDLE* p = &info->hwait;
+		while(*p != NULL) {
+			YieldProcessor();
+		}
+		UnregisterWait(*p);
+	}
+}
+
+}  // noname namespace
 
 void loop::connect(
 	int socket_family, int socket_type, int protocol,
 	const sockaddr* addr, socklen_t addrlen,
 	double timeout_sec, connect_callback_t callback)
 {
-	// TODO: タイムアウト
 	int err = 0;
 	SOCKET fd = ::WSASocket(socket_family, socket_type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (fd == INVALID_SOCKET) {
@@ -1803,19 +1834,24 @@ void loop::connect(
 	}
 
 #if 1
-	if (WSAConnect(fd, addr, addrlen, NULL, NULL, NULL, NULL) != 0) {
-		err = GetLastError();
-		goto error;
+	{
+		std::auto_ptr<connect_info> info(new connect_info);
+		info->hevent.reset(::CreateEvent(NULL, TRUE, FALSE, NULL));
+		WSAEventSelect(fd, info->hevent.get(), FD_CONNECT);
+		if (WSAConnect(fd, addr, addrlen, NULL, NULL, NULL, NULL) != 0) {
+			err = GetLastError();
+			if (err != WSAEWOULDBLOCK) {
+				goto error;
+			}
+		}
+		info->callback = callback;
+		info->sock = fd;
+		if(RegisterWaitForSingleObject(&info->hwait, info->hevent.get(), on_connect, info.get(), static_cast<DWORD>(timeout_sec * 1000), WT_EXECUTEONLYONCE))
+		{
+			info.release();
+			return;
+		}
 	}
-
-	ULONG val = TRUE;
-	if (::ioctlsocket(fd, FIONBIO, &val) != 0) {
-		err = GetLastError();
-		goto error;
-	}
-
-	callback(fd, 0);
-	return;
 #else
 	// TODO: IPv4以外への対応
 	sockaddr_in sin;
