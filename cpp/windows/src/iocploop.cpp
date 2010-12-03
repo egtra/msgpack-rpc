@@ -1807,7 +1807,7 @@ void CALLBACK on_connect(void* parameter, BOOLEAN timeout)
 		}
 
 		volatile HANDLE* p = &info->hwait;
-		while(*p != NULL) {
+		while(*p == NULL) {
 			YieldProcessor();
 		}
 		UnregisterWait(*p);
@@ -1837,7 +1837,10 @@ void loop::connect(
 	{
 		std::auto_ptr<connect_info> info(new connect_info);
 		info->hevent.reset(::CreateEvent(NULL, TRUE, FALSE, NULL));
-		WSAEventSelect(fd, info->hevent.get(), FD_CONNECT);
+		if (WSAEventSelect(fd, info->hevent.get(), FD_CONNECT) != 0) {
+			err = GetLastError();
+			goto error;
+		}
 		if (WSAConnect(fd, addr, addrlen, NULL, NULL, NULL, NULL) != 0) {
 			err = GetLastError();
 			if (err != WSAEWOULDBLOCK) {
@@ -1901,53 +1904,6 @@ out_:
 }
 
 // wavy_listen.cc
-
-//namespace {
-//
-//
-//class listen_handler : public handler {
-//public:
-//	typedef loop::listen_callback_t listen_callback_t;
-//
-//	listen_handler(int fd, listen_callback_t callback) :
-//		handler(fd), m_callback(callback) { }
-//
-//	~listen_handler() { }
-//
-//	void on_read(event& e)
-//	{
-//		while(true) {
-//			int err = 0;
-//			int sock = ::accept(fd(), NULL, NULL);
-//			if(sock < 0) {
-//				if(errno == EAGAIN || errno == EINTR) {
-//					return;
-//				}
-//				err = errno;
-//
-//				m_callback(sock, err);
-//
-//				throw system_error(errno, "accept failed");
-//			}
-//
-//			try {
-//				m_callback(sock, err);
-//			} catch (...) {
-//				::close(sock);
-//			}
-//		}
-//	}
-//
-//private:
-//	listen_callback_t m_callback;
-//
-//private:
-//	listen_handler();
-//	listen_handler(const listen_handler&);
-//};
-//
-//
-//}  // noname namespace
 
 namespace {
 
@@ -2027,7 +1983,10 @@ mp::shared_ptr<SOCKET> loop::listen(
 //		add_handler<listen_handler>(lsock, callback);
 		unique_handle hevent(::CreateEvent(NULL, FALSE, FALSE, NULL));
 		unique_wait_handle hwait = register_wait_for_single_object(ANON_impl->hiocp.get(), hevent.get(), mp::bind(on_accept, lsock, callback, ANON_impl->hiocp.get()), INFINITE, WT_EXECUTEDEFAULT);
-		::WSAEventSelect(lsock, hevent.get(), FD_ACCEPT);
+		if (::WSAEventSelect(lsock, hevent.get(), FD_ACCEPT) != 0) {
+			::closesocket(lsock);
+			throw mp::system_error(WSAGetLastError(), "bind failed");
+		}
 		mp::shared_ptr<listen_socket> ls(std::make_shared<listen_socket>(std::move(hevent), std::move(hwait), lsock));
 		return mp::shared_ptr<SOCKET>(std::move(ls), &ls->m_lsock);
 

@@ -150,8 +150,6 @@ inline void client_transport::on_connect_success(SOCKET fd, sync_ref& ref)
 
 	mp::shared_ptr<client_socket> cs(new client_socket(fd, this, m_session));
 	cs->async_read();
-//	mp::shared_ptr<client_socket> cs =
-//		m_session->get_loop()->add_handler<client_socket>(fd, this, m_session);
 
 	ref->sockpool.push_back(cs.get());
 
@@ -162,17 +160,17 @@ inline void client_transport::on_connect_success(SOCKET fd, sync_ref& ref)
 }
 
 void client_transport::on_connect_failed(int err, sync_ref& ref)
-{assert(0);
+{
 	if(ref->connecting < m_reconnect_limit) {
-//		LOG_WARN("connect to ",m_session->get_address()," failed, retrying: ",strerror(err));
-//		try_connect(ref);
-//		++ref->connecting;
+		LOG_WARN("connect to ",m_session->get_address()," failed, retrying: ",mp::system_error::errno_string(err));
+		try_connect(ref);
+		++ref->connecting;
 		return;
 	}
 
-//	LOG_WARN("connect to ",m_session->get_address()," failed, abort: ",strerror(err));
-	//ref->connecting = 0;
-	//ref->pending_xf.clear();
+	LOG_WARN("connect to ",m_session->get_address()," failed, abort: ",mp::system_error::errno_string(err));
+	ref->connecting = 0;
+	ref->pending_xf.clear();
 
 	ref.reset();
 	m_session->on_connect_failed();
@@ -182,7 +180,7 @@ void client_transport::on_connect(SOCKET fd, int err, weak_session ws, client_tr
 {
 	shared_session s = ws.lock();
 	if(!s) {
-		if(fd >= 0) {
+		if(fd != INVALID_SOCKET) {
 			::closesocket(fd);
 		}
 		return;
@@ -210,7 +208,6 @@ void client_transport::try_connect(sync_ref& lk_ref)
 
 	LOG_INFO("connecting to ",addr);
 
-	//char addrbuf[addr.get_addrlen()];
 	sockaddr_storage addrbuf;
 	addr.get_addr((sockaddr*)&addrbuf);
 

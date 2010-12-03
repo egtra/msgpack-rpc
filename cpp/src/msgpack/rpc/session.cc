@@ -101,14 +101,13 @@ void session_impl::step_timeout()
 
 void session_impl::on_connect_failed()
 {
-	assert(0);
-	//std::vector<shared_future> all;
-	//m_reqtable.take_all(&all);
-	//for(std::vector<shared_future>::iterator it(all.begin()),
-	//		it_end(all.end()); it != it_end; ++it) {
-	//	shared_future& f = *it;
-	//	f->set_result(object(), CONNECT_ERROR, auto_zone());
-	//}
+	std::vector<shared_future> all;
+	m_reqtable.take_all(&all);
+	for(std::vector<shared_future>::iterator it(all.begin()),
+			it_end(all.end()); it != it_end; ++it) {
+		shared_future& f = *it;
+		f->set_result(object(), CONNECT_ERROR, auto_zone());
+	}
 }
 
 void session_impl::on_response(msgid_t msgid,
