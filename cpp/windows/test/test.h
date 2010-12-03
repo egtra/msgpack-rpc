@@ -6,4 +6,5 @@ const std::uint16_t SERVER_PORT = 9191;
 
 void async_call_0();
 void async_server();
+void sync_call();
 

@@ -17,8 +17,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	cclog::reset(new cclog_debugoutput(cclog::TRACE));
 
 	try {
-		async_call_0();
+		//async_call_0();
 		//async_server();
+		sync_call();
 	} catch (std::exception const& e) {
 		std::cerr << e.what() << std::endl;
 	}
