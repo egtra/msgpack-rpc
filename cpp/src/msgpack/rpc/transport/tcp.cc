@@ -23,6 +23,7 @@
 #include <mp/sync.h>
 #include <mp/utilize.h>
 #include <vector>
+#include <concurrent_vector.h>
 
 namespace msgpack {
 namespace rpc {
@@ -299,12 +300,12 @@ public:
 
 	void close();
 
-	static void on_accept(SOCKET fd, int err, weak_server wsvr, mp::shared_ptr<server_socket>& sock);
+	static void on_accept(SOCKET fd, int err, weak_server wsvr, mp::shared_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > > sock);
 
 private:
 	mp::shared_ptr<SOCKET> m_lsock;
 	loop m_loop;
-	mp::shared_ptr<server_socket> m_sock;
+	mp::shared_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > > m_sock;
 
 private:
 	server_transport();
@@ -341,7 +342,7 @@ void server_socket::on_notify(
 
 
 server_transport::server_transport(server_impl* svr, const address& addr) :
-	m_lsock(), m_loop(svr->get_loop())
+	m_lsock(), m_loop(svr->get_loop()), m_sock(std::make_shared<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > >())
 {
 	sockaddr_storage addrbuf;
 	addr.get_addr((sockaddr*)&addrbuf);
@@ -353,7 +354,7 @@ server_transport::server_transport(server_impl* svr, const address& addr) :
 				&server_transport::on_accept,
 				_1, _2,
 				weak_server(mp::static_pointer_cast<server_impl>(svr->shared_from_this())),
-				std::ref(m_sock)
+				m_sock
 				));
 }
 
@@ -366,14 +367,9 @@ void server_transport::close()
 {
 	m_lsock.reset();
 	m_sock.reset();
-	//if(m_lsock >= 0) {
-	//	m_loop->remove_handler(m_lsock);
-	//	m_lsock = -1;
-	//}
-	// FIXME m_sock->remove_handler();
 }
 
-void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::shared_ptr<server_socket>& sock)
+void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::shared_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > > sock)
 {
 	shared_server svr = wsvr.lock();
 	if(!svr) {
@@ -388,9 +384,9 @@ void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::share
 	LOG_TRACE("accepted fd=",fd);
 
 	try {
-//		svr->get_loop()->add_handler<server_socket>(fd, svr);
-		sock.reset(new server_socket(fd, svr));
-		sock->async_read();
+		mp::shared_ptr<server_socket> accepted_sock = std::make_shared<server_socket>(fd, svr);
+		accepted_sock->async_read();
+		sock->push_back(accepted_sock);
 	} catch (...) {
 		::closesocket(fd);
 		throw;
