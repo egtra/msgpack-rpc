@@ -1980,7 +1980,6 @@ mp::shared_ptr<SOCKET> loop::listen(
 	}
 
 	try {
-//		add_handler<listen_handler>(lsock, callback);
 		unique_handle hevent(::CreateEvent(NULL, FALSE, FALSE, NULL));
 		unique_wait_handle hwait = register_wait_for_single_object(ANON_impl->hiocp.get(), hevent.get(), mp::bind(on_accept, lsock, callback, ANON_impl->hiocp.get()), INFINITE, WT_EXECUTEDEFAULT);
 		if (::WSAEventSelect(lsock, hevent.get(), FD_ACCEPT) != 0) {

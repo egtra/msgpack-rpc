@@ -86,6 +86,7 @@
     <ClCompile Include="async_call_0.cc" />
     <ClCompile Include="callback.cc" />
     <ClCompile Include="error.cc" />
+    <ClCompile Include="notify.cc" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>

@@ -40,16 +40,6 @@
 namespace mp {
 namespace wavy {
 
-struct overlapped_callback : ::OVERLAPPED/*, mp::enable_shared_from_this<overlapped_callback>*/
-{
-	overlapped_callback(mp::function<void (::OVERLAPPED const&, DWORD)> callback) : ::OVERLAPPED(), callback(callback) {}
-	mp::function<void (::OVERLAPPED const&, DWORD)> callback;
-
-private:
-	overlapped_callback(const overlapped_callback&);
-	overlapped_callback& operator =(const overlapped_callback&);
-};
-
 class basic_handler;
 class handler;
 class event;

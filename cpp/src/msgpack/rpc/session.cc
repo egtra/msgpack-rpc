@@ -69,15 +69,15 @@ future session_impl::send_request_impl(msgid_t msgid, auto_vreflife vbuf)
 	return future(f);
 }
 
-//void session_impl::send_notify_impl(sbuffer* sbuf)
-//{
-//	m_tran->send_data(sbuf);
-//}
-//
-//void session_impl::send_notify_impl(auto_vreflife vbuf)
-//{
-//	m_tran->send_data(vbuf);
-//}
+void session_impl::send_notify_impl(sbuffer* sbuf)
+{
+	m_tran->send_data(sbuf);
+}
+
+void session_impl::send_notify_impl(auto_vreflife vbuf)
+{
+	m_tran->send_data(vbuf);
+}
 
 msgid_t session_impl::next_msgid()
 {
@@ -144,11 +144,11 @@ future session::send_request_impl(msgid_t msgid, std::auto_ptr<with_shared_zone<
 future session::send_request_impl(msgid_t msgid, sbuffer* sbuf)
 	{ return m_pimpl->send_request_impl(msgid, sbuf); }
 
-//void session::send_notify_impl(sbuffer* sbuf)
-//	{ return m_pimpl->send_notify_impl(sbuf); }
-//
-//void session::send_notify_impl(std::auto_ptr<with_shared_zone<vrefbuffer> > vbuf)
-//	{ return m_pimpl->send_notify_impl(vbuf); }
+void session::send_notify_impl(sbuffer* sbuf)
+	{ return m_pimpl->send_notify_impl(sbuf); }
+
+void session::send_notify_impl(std::auto_ptr<with_shared_zone<vrefbuffer> > vbuf)
+	{ return m_pimpl->send_notify_impl(vbuf); }
 
 msgid_t session::next_msgid()
 	{ return m_pimpl->next_msgid(); }

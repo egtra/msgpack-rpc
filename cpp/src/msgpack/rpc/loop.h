@@ -18,8 +18,11 @@
 #ifndef MSGPACK_RPC_LOOP_H__
 #define MSGPACK_RPC_LOOP_H__
 
-//#include <mp/wavy.h>
+#ifndef _WIN32
+#include <mp/wavy.h>
+#else
 #include "iocploop.h"
+#endif
 #include <mp/memory.h>
 
 

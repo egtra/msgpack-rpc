@@ -9,3 +9,4 @@ void async_server();
 void sync_call();
 void callback();
 void error();
+void notify();

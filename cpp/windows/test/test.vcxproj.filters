@@ -50,5 +50,8 @@
     <ClCompile Include="error.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="notify.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

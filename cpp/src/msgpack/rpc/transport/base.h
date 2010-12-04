@@ -360,7 +360,7 @@ void stream_handler<MixIn>::async_read() {
 
 	WSABUF buf = {m_pac.buffer_capacity(), m_pac.buffer()};
 	DWORD flags = 0;
-	std::auto_ptr<mp::wavy::overlapped_callback> overlapped(new mp::wavy::overlapped_callback(
+	std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
 		mp::bind(&stream_handler<MixIn>::on_read2, mp::static_pointer_cast<stream_handler<MixIn>>(shared_from_this()), mp::placeholders::_1, mp::placeholders::_2)));
 	int rl = ::WSARecv(ident(), &buf, 1, NULL, &flags, overlapped.get(), NULL);
 	if (rl != 0) {

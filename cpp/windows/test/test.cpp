@@ -21,7 +21,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		//async_server();
 		//sync_call();
 		//callback();
-		error();
+		//error();
+		notify();
 	} catch (std::exception const& e) {
 		std::cerr << e.what() << std::endl;
 	}
