@@ -8,3 +8,4 @@ void async_call_0();
 void async_server();
 void sync_call();
 void callback();
+void error();
