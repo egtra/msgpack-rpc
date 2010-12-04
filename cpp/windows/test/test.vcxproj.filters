@@ -44,5 +44,8 @@
     <ClCompile Include="sync_call.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="callback.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

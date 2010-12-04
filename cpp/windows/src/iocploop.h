@@ -67,16 +67,16 @@ public:
 
 	void start(size_t num);
 
-	//void run(size_t num);   // run = start + join
+	void run(size_t num);   // run = start + join
 
 	bool is_running() const;
 
 	void run_once();
 
-	//void end();
-	//bool is_end() const;
+	void end();
+	bool is_end() const;
 
-	//void join();
+	void join();
 	//void detach();
 
 	void add_thread(size_t num);

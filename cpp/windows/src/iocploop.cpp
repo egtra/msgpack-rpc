@@ -857,7 +857,7 @@ loop_impl::loop_impl(mp::function<void ()> thread_init_func) :/*
 loop_impl::~loop_impl()
 {
 	end();
-	//join();  // FIXME detached?
+	join();  // FIXME detached?
 	//{
 	//	pthread_scoped_lock lk(m_mutex);
 	//	m_cond.broadcast();
@@ -887,14 +887,14 @@ bool loop_impl::is_end() const
 }
 
 
-//void loop_impl::join()
-//{
-//	for(workers_t::iterator it(m_workers.begin());
-//			it != m_workers.end(); ++it) {
-//		it->join();
-//	}
-//	m_workers.clear();
-//}
+void loop_impl::join()
+{
+	for(workers_t::iterator it(m_workers.begin());
+			it != m_workers.end(); ++it) {
+		it->join();
+	}
+	m_workers.clear();
+}
 
 void loop_impl::detach()
 {
@@ -1317,11 +1317,11 @@ loop::loop() : m_impl(new loop_impl()) { }
 
 loop::~loop() { delete ANON_impl; }
 
-//void loop::run(size_t num)
-//{
-//	start(num);
-//	join();
-//}
+void loop::run(size_t num)
+{
+	start(num);
+	join();
+}
 
 void loop::start(size_t num)
 	{ ANON_impl->start(num); }
@@ -1334,15 +1334,15 @@ void loop::run_once()
 	{ ANON_impl->run_once(); }
 
 
-//void loop::end()
-//	{ ANON_impl->end(); }
-//
-//bool loop::is_end() const
-//	{ return ANON_impl->is_end(); }
-//
-//void loop::join()
-//	{ ANON_impl->join(); }
-//
+void loop::end()
+	{ ANON_impl->end(); }
+
+bool loop::is_end() const
+	{ return ANON_impl->is_end(); }
+
+void loop::join()
+	{ ANON_impl->join(); }
+
 //void loop::detach()
 //	{ ANON_impl->detach(); }
 //
