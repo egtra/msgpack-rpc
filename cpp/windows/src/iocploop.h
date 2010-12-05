@@ -15,8 +15,10 @@ namespace windows {
 
 struct overlapped_callback : ::OVERLAPPED/*, mp::enable_shared_from_this<overlapped_callback>*/
 {
-	overlapped_callback(mp::function<void (::OVERLAPPED const&, DWORD)> callback) : ::OVERLAPPED(), callback(callback) {}
-	mp::function<void (::OVERLAPPED const&, DWORD)> callback;
+	typedef mp::function<void (::OVERLAPPED const& ov, DWORD transfered, DWORD error)> callback_t;
+
+	overlapped_callback(callback_t callback) : ::OVERLAPPED(), callback(callback) {}
+	callback_t callback;
 
 private:
 	overlapped_callback(const overlapped_callback&);
@@ -24,15 +26,10 @@ private:
 };
 
 
-class basic_handler;
-class handler;
-class event;
 class xfer;
 
 class timer;
 
-typedef mp::shared_ptr<basic_handler> shared_handler;
-typedef mp::weak_ptr<basic_handler> weak_handler;
 
 
 typedef int socklen_t;
@@ -56,10 +53,6 @@ typedef std::unique_ptr<HANDLE, handle_deleter<::UnregisterWait>> unique_wait_ha
 
 class loop {
 public:
-	typedef ::msgpack::rpc::impl::windows::basic_handler basic_handler;
-	typedef ::msgpack::rpc::impl::windows::handler handler;
-	typedef ::msgpack::rpc::impl::windows::event event;
-
 	loop();
 //	loop(function<void ()> thread_init_func);
 
@@ -171,42 +164,6 @@ public:
 	//void flush();
 
 
-	//template <typename Handler>
-	//mp::shared_ptr<Handler> add_handler();
-	//template <typename Handler, typename A1>
-	//mp::shared_ptr<Handler> add_handler(A1 a1);
-	//template <typename Handler, typename A1, typename A2>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2);
-	//template <typename Handler, typename A1, typename A2, typename A3>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15);
-	//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16>
-	//mp::shared_ptr<Handler> add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15, A16 a16);
-
-
 	template <typename F>
 	void submit(F f);
 	template <typename F, typename A1>
@@ -244,8 +201,6 @@ public:
 
 
 private:
-	shared_handler add_handler_impl(shared_handler sh);
-
 	typedef mp::function<void ()> task_t;
 	void submit_impl(task_t f);
 
@@ -255,19 +210,6 @@ private:
 	void* m_impl;
 
 	loop(const loop&);
-};
-
-
-class event {
-protected:
-	event() { }
-	~event() { }
-public:
-	void more();
-	void next();
-	void remove();
-private:
-	event(const event&);
 };
 
 
@@ -312,14 +254,8 @@ private:
 
 class basic_handler {
 public:
-	typedef bool (*callback_t)(basic_handler*, event&);
-
-	template <typename IMPL>
-	basic_handler(SOCKET ident, IMPL* self) :
-		m_ident(ident), m_callback(&static_callback<IMPL>) { }
-
-	basic_handler(SOCKET ident, callback_t callback) :
-		m_ident(ident), m_callback(callback) { }
+	basic_handler(SOCKET ident) :
+		m_ident(ident) { }
 
 	virtual ~basic_handler() { }
 
@@ -327,20 +263,10 @@ public:
 
 	SOCKET fd() const { return ident(); }
 
-	bool operator() (event& e);
-
 private:
 	SOCKET m_ident;
 
-	callback_t m_callback;
-
 private:
-	template <typename IMPL>
-	static bool static_callback(basic_handler* self, event& e)
-	{
-		return (*static_cast<IMPL*>(self))(e);
-	}
-
 	basic_handler();
 	basic_handler(const basic_handler&);
 };
@@ -348,11 +274,9 @@ private:
 
 class handler : public mp::enable_shared_from_this<handler>, public basic_handler {
 public:
-	handler(SOCKET fd) : basic_handler(fd, &callback_on_read) { }
+	handler(SOCKET fd) : basic_handler(fd) { }
 
 	~handler() { ::closesocket(fd()); }
-
-	//virtual void on_read(event& e) = 0;
 
 public:
 	template <typename IMPL>
@@ -366,95 +290,8 @@ public:
 	{
 		return mp::static_pointer_cast<IMPL>(enable_shared_from_this<handler>::shared_from_this());
 	}
-
-private:
-	static inline bool callback_on_read(basic_handler* self, event& e)
-	{
-		//static_cast<handler*>(self)->on_read(e);
-		return true;
-	}
-	friend class basic_handler;
 };
 
-
-//inline bool basic_handler::operator() (event& e)
-//{
-//	if(m_callback == handler::callback_on_read) {
-//		return handler::callback_on_read(this, e);
-//	} else {
-//		return m_callback(this, e);
-//	}
-//}
-
-
-//template <typename Handler>
-//mp::shared_ptr<Handler> loop::add_handler()
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler())) ); }
-//template <typename Handler, typename A1>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1))) ); }
-//template <typename Handler, typename A1, typename A2>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15))) ); }
-//template <typename Handler, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16>
-//mp::shared_ptr<Handler> loop::add_handler(A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15, A16 a16)
-//	{ return static_pointer_cast<Handler>(add_handler_impl(
-//			mp::shared_ptr<Handler>(new Handler(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))) ); }
 
 template <typename F>
 inline void loop::submit(F f)

@@ -43,12 +43,8 @@ namespace {
 
 // wavy_out.h
 
-struct kernel_mixin {
-//	kernel m_kernel;
-};
 
-
-class out : protected kernel_mixin, public basic_handler {
+class out : public basic_handler {
 public:
 	out();
 	~out();
@@ -62,30 +58,9 @@ public:
 //	inline void write(int fd, const void* buf, size_t size);
 //
 //public:
-//	kernel& get_kernel()
-//	{
-//		return m_kernel;
-//	}
-
-	bool operator() (event& e)
-	{
-		throw std::logic_error("out::on_read is called");
-	}
-
 //	bool has_queue() const
 //	{
 //		return !m_queue.empty();
-//	}
-//
-//	void poll_event();
-//
-//	bool write_event(kernel::event e);
-//
-//	kernel::event next()
-//	{
-//		kernel::event e = m_queue.front();
-//		m_queue.pop();
-//		return e;
 //	}
 //
 //	bool empty() const
@@ -94,8 +69,6 @@ public:
 //	}
 //
 //private:
-//	std::queue<kernel::event> m_queue;
-//	kernel::backlog m_backlog;
 //	volatile int m_watching;
 //
 //	void watch(int fd);
@@ -133,26 +106,7 @@ public:
 
 	void add_thread(size_t num);
 
-	shared_handler add_handler_impl(shared_handler sh);
-
-	void remove_handler(int fd);
-
 	void submit_impl(task_t& f);
-
-	//void set_handler(shared_handler sh)
-	//{
-	//	m_state[sh->ident()] = sh;
-	//}
-
-//	void reset_handler(int ident)
-//	{
-////		m_state[ident].reset();
-//	}
-
-	//kernel& get_kernel()
-	//{
-	//	return m_kernel;
-	//}
 
 	void flush();
 
@@ -160,9 +114,6 @@ public:
 	void thread_main();
 	inline void do_task(pthread_scoped_lock& lk);
 	inline void do_out(pthread_scoped_lock& lk);
-	//inline void event_more(kernel::event ke);
-	//inline void event_next(kernel::event ke);
-	//inline void event_remove(kernel::event ke);
 
 private:
 	//volatile size_t m_off;
@@ -181,9 +132,6 @@ private:
 
 	typedef std::queue<task_t> task_queue_t;
 //	task_queue_t m_task_queue;
-
-//	typedef std::queue<kernel::event> more_queue_t;
-//	more_queue_t m_more_queue;
 
 	mp::function<void ()> m_thread_init_func;
 
@@ -207,41 +155,6 @@ private:
 
 
 #define ANON_impl static_cast<loop_impl*>(m_impl)
-
-class event_impl : public event {
-public:
-	//event_impl(loop_impl* lo, kernel::event ke) :
-	//	m_flags(0),
-	//	m_loop(lo),
-	//	m_pe(ke) { }
-
-	~event_impl() { }
-
-	bool is_reactivated()
-	{
-		return (m_flags & FLAG_REACTIVATED) != 0;
-	}
-
-	bool is_removed()
-	{
-		return (m_flags & FLAG_REMOVED) != 0;
-	}
-
-	//const kernel::event& get_kernel_event() const
-	//{
-	//	return m_pe;
-	//}
-
-private:
-	enum {
-		FLAG_REACTIVATED = 0x01,
-		FLAG_REMOVED     = 0x02,
-	};
-	int m_flags;
-	loop_impl* m_loop;
-//	kernel::event m_pe;
-	friend class event;
-};
 
 // wavy_out.cc
 
@@ -645,7 +558,7 @@ inline xfer_impl& get_xfer_impl_from_fdctx(void* fdctx, SOCKET s)
 
 #define ANON_fdctx_at(fd) (get_xfer_impl_from_fdctx(m_fdctx, fd))
 
-out::out() : basic_handler(0/*m_kernel.ident()*/, this)/*, m_watching(0)*/
+out::out() : basic_handler(0/*m_kernel.ident()*/)/*, m_watching(0)*/
 {
 	//struct rlimit rbuf;
 	//if(::getrlimit(RLIMIT_NOFILE, &rbuf) < 0) {
@@ -659,45 +572,6 @@ out::~out()
 	delete reinterpret_cast<mp::unordered_map<SOCKET, mp::shared_ptr<xfer_impl>>*>(m_fdctx);
 }
 
-//void out::poll_event()
-//{
-//	int num = m_kernel.wait(&m_backlog, 0);
-//	if(num <= 0) {
-//		if(num == 0 || errno == EINTR || errno == EAGAIN) {
-//			return;
-//		} else {
-//			throw system_error(errno, "wavy out event failed");
-//		}
-//	}
-//
-//	for(int i=0; i < num; ++i) {
-//		m_queue.push(m_backlog[i]);
-//	}
-//}
-//
-//bool out::write_event(kernel::event e)
-//{
-//	int ident = e.ident();
-//
-//	xfer_impl& ctx(ANON_fdctx[ident]);
-//	pthread_scoped_lock lk(ctx.mutex());
-//
-//	bool cont;
-//	try {
-//		cont = ctx.try_write(ident);
-//	} catch (...) {
-//		cont = false;
-//	}
-//	
-//	if(!cont) {
-//		m_kernel.remove(e);
-//		ctx.clear();
-//		return __sync_sub_and_fetch(&m_watching, 1) == 0;
-//	} else {
-//		m_kernel.reactivate(e);
-//		return false;
-//	}
-//}
 
 //inline void out::watch(int fd)
 //{
@@ -937,165 +811,10 @@ bool loop_impl::is_running() const
 void loop_impl::submit_impl(task_t& f)
 {
 	//pthread_scoped_lock lk(m_mutex);
-	//m_task_queue.push(f);
-	//m_cond.signal();
 	::PostQueuedCompletionStatus(hiocp.get(), 0, 0, new overlapped_callback(mp::bind(f)));
 }
 
 
-//shared_ptr<basic_handler> loop_impl::add_handler_impl(shared_ptr<basic_handler> sh)
-//{assert(0);
-//	//int fd = sh->ident();
-//	//if(::fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
-//	//	throw system_error(errno, "failed to set nonblock flag");
-//	//}
-//
-////	set_handler(sh);
-////	get_kernel().add_fd(fd, EVKERNEL_READ);
-//
-//	return sh;
-//}
-//
-//void loop_impl::remove_handler(int fd)
-//{
-//	reset_handler(fd);
-//	//m_kernel.remove_fd(fd, EVKERNEL_READ);
-//}
-
-
-//void loop_impl::do_task(pthread_scoped_lock& lk)
-//{
-//	task_t ev = m_task_queue.front();
-//	m_task_queue.pop();
-//
-//	bool last = m_task_queue.empty();
-//	if(!last) { m_cond.signal(); }
-//
-//	lk.unlock();
-//
-//	try {
-//		ev();
-//	} catch (...) { }
-//
-//	if(last) {
-//		lk.relock(m_mutex);
-//		m_flush_cond.broadcast();
-//	}
-//}
-//
-//void loop_impl::do_out(pthread_scoped_lock& lk)
-//{
-//	kernel::event ke = m_out->next();
-//
-//	lk.unlock();
-//
-//	if(m_out->write_event(ke)) {
-//		lk.relock(m_mutex);
-//		m_flush_cond.broadcast();
-//	}
-//}
-//
-//void loop_impl::thread_main()
-//{
-//	retry:
-//	while(true) {
-//		pthread_scoped_lock lk(m_mutex);
-//
-//		retry_task:
-//		if(m_end_flag) { break; }
-//
-//		kernel::event ke;
-//
-//		if(!m_more_queue.empty()) {
-//			ke = m_more_queue.front();
-//			m_more_queue.pop();
-//			goto process_handler;
-//		}
-//
-//		if(!m_pollable) {
-//			if(m_out->has_queue()) {
-//				do_out(lk);
-//				goto retry;
-//			} else if(!m_task_queue.empty()) {
-//				do_task(lk);
-//				goto retry;
-//			} else {
-//				m_cond.wait(m_mutex);
-//				goto retry_task;
-//			}
-//		} else if(m_task_queue.size() > MP_WAVY_TASK_QUEUE_LIMIT) {
-//			do_task(lk);
-//			goto retry;
-//		}
-//
-//		if(m_num == m_off) {
-//			m_pollable = false;
-////m_poll_thread = pthread_self();  // FIXME signal_stop
-//			lk.unlock();
-//
-//			retry_poll:
-//			int num = m_kernel.wait(&m_backlog, 1000);
-//
-//			if(num <= 0) {
-//				if(num == 0 || errno == EINTR || errno == EAGAIN) {
-//					if(m_end_flag) {
-//						m_pollable = true;
-//						break;
-//					}
-//					goto retry_poll;
-//				} else {
-//					throw system_error(errno, "wavy kernel event failed");
-//				}
-//			}
-//
-//			lk.relock(m_mutex);
-//			m_off = 0;
-//			m_num = num;
-//
-////m_poll_thread = 0;  // FIXME signal_stop
-//			m_pollable = true;
-//			m_cond.signal();
-//		}
-//
-//		ke = m_backlog[m_off++];
-//
-//		process_handler:
-//		int ident = ke.ident();
-//
-//		if(ident == m_out->ident()) {
-//			m_out->poll_event();
-//			lk.unlock();
-//
-//			m_kernel.reactivate(ke);
-//
-//		} else {
-//			lk.unlock();
-//
-//			event_impl e(this, ke);
-//			shared_handler h = m_state[ident];
-//
-//			bool cont = false;
-//			if(h) {
-//				try {
-//					cont = (*h)(e);
-//				} catch (...) { }
-//			}
-//
-//			if(!e.is_reactivated()) {
-//				if(e.is_removed()) {
-//					goto retry;
-//				}
-//				if(!cont) {
-//					m_kernel.remove(ke);
-//					reset_handler(ident);
-//					goto retry;
-//				}
-//				m_kernel.reactivate(ke);
-//			}
-//		}
-//
-//	}  // while(true)
-//}
 void loop_impl::thread_main()
 {
 	while(true) {
@@ -1104,21 +823,27 @@ void loop_impl::thread_main()
 		OVERLAPPED* poverlapped;
 		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, INFINITE);
 		DWORD lastError = GetLastError();
-		if(!ret) {
-			throw mp::system_error(lastError, "GetQueuedCompletionStatus");
-		}
 
-		if(key == COMPLATE_KEY_END) {
+		if(ret && key == COMPLATE_KEY_END) {
 			break;
 		}
 
 		if(poverlapped != NULL) {
 			std::auto_ptr<overlapped_callback> oc(static_cast<overlapped_callback*>(poverlapped));
 			if (oc->callback) {
-				oc->callback(*poverlapped, transferred);
+				oc->callback(*poverlapped, transferred,
+					ret
+					? 0
+					: lastError);
 			}
 		}
-	}
+		else if(!ret) {
+			if (lastError == WAIT_TIMEOUT) {
+				break;
+			} else {
+				throw mp::system_error(lastError, "GetQueuedCompletionStatus");
+			}
+		}	}
 }
 
 //inline void loop_impl::run_once()
@@ -1134,15 +859,8 @@ inline void loop_impl::run_once()
 		OVERLAPPED* poverlapped;
 		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, 0);
 		DWORD lastError = GetLastError();
-		if(!ret) {
-			if (lastError == WAIT_TIMEOUT) {
-				break;
-			} else {
-				throw mp::system_error(lastError, "GetQueuedCompletionStatus");
-			}
-		}
 
-		if(key == COMPLATE_KEY_END) {
+		if(ret && key == COMPLATE_KEY_END) {
 			PostQueuedCompletionStatus(hiocp.get(), 0, COMPLATE_KEY_END, 0);
 			break;
 		}
@@ -1150,7 +868,17 @@ inline void loop_impl::run_once()
 		if(poverlapped != NULL) {
 			std::auto_ptr<overlapped_callback> oc(static_cast<overlapped_callback*>(poverlapped));
 			if (oc->callback) {
-				oc->callback(*poverlapped, transferred);
+				oc->callback(*poverlapped, transferred,
+					ret
+					? 0
+					: lastError);
+			}
+		}
+		else if(!ret) {
+			if (lastError == WAIT_TIMEOUT) {
+				break;
+			} else {
+				throw mp::system_error(lastError, "GetQueuedCompletionStatus");
 			}
 		}
 	}
@@ -1263,54 +991,7 @@ inline void loop_impl::run_once()
 //}
 //
 //
-//void loop_impl::event_more(kernel::event ke)
-//{
-//	pthread_scoped_lock lk(m_mutex);
-//	m_more_queue.push(ke);
-//	m_cond.signal();
-//}
-//
-//void loop_impl::event_next(kernel::event ke)
-//{
-//	m_kernel.reactivate(ke);
-//}
-//
-//void loop_impl::event_remove(kernel::event ke)
-//{
-//	m_kernel.remove(ke);
-//	reset_handler(ke.ident());
-//}
-//
-//
 //}  // noname namespace
-
-
-void event::more()
-{
-	//event_impl* self = static_cast<event_impl*>(this);
-	//if(!self->is_reactivated()) {
-	//	self->m_loop->event_more(self->m_pe);
-	//	self->m_flags |= 0x01;
-	//}
-}
-
-void event::next()
-{
-	//event_impl* self = static_cast<event_impl*>(this);
-	//if(!self->is_reactivated()) {
-	//	self->m_loop->event_next(self->m_pe);
-	//	self->m_flags |= event_impl::FLAG_REACTIVATED;
-	//}
-}
-
-void event::remove()
-{
-	//event_impl* self = static_cast<event_impl*>(this);
-	//if(!self->is_removed()) {
-	//	self->m_loop->event_remove(self->m_pe);
-	//	self->m_flags |= event_impl::FLAG_REMOVED;
-	//}
-}
 
 
 loop::loop() : m_impl(new loop_impl()) { }
@@ -1327,12 +1008,10 @@ void loop::start(size_t num)
 	{ ANON_impl->start(num); }
 
 bool loop::is_running() const
-//	{ return ANON_impl->is_running(); }
-	{ return false; }
+	{ return ANON_impl->is_running(); }
 
 void loop::run_once()
 	{ ANON_impl->run_once(); }
-
 
 void loop::end()
 	{ ANON_impl->end(); }
@@ -1349,12 +1028,6 @@ void loop::join()
 //void loop::add_thread(size_t num)
 //	{ ANON_impl->add_thread(num); }
 
-//shared_handler loop::add_handler_impl(shared_handler newh)
-//	{ return ANON_impl->add_handler_impl(newh); }
-//
-//void loop::remove_handler(SOCKET fd)
-//	{ ANON_impl->remove_handler(fd); }
-
 void loop::submit_impl(task_t f)
 	{ ANON_impl->submit_impl(f); }
 
@@ -1369,7 +1042,7 @@ public:
 			mp::function<bool ()> callback)
 			: htimer(::CreateWaitableTimer(nullptr, FALSE, nullptr)), hiocp(hiocp), callback(callback)
 	{
-		assert(htimer != nullptr);
+		assert(htimer != NULL);
 
 		LARGE_INTEGER value;
 		value.QuadPart = static_cast<long long>(value_sec * -10000000);
@@ -1474,303 +1147,6 @@ int GetExtensionFunctionPointer(SOCKET s, GUID guid, T& pfn)
 }
 
 }  // noname namespace
-
-//namespace {
-//
-//
-//class connect_task {
-//public:
-//	typedef loop::connect_callback_t connect_callback_t;
-//
-//	struct pack {
-//		int        socket_family;
-//		int        socket_type;
-//		int        protocol;
-//		socklen_t  addrlen;
-//		int        timeout_msec;
-//		sockaddr   addr[0];
-//	};
-//
-//	connect_task(
-//			int socket_family, int socket_type, int protocol,
-//			const sockaddr* addr, socklen_t addrlen,
-//			const timespec* timeout, connect_callback_t& callback) :
-//		m((pack*)::malloc(sizeof(pack)+addrlen)),
-//		m_callback(callback)
-//	{
-//		if(!m) { throw std::bad_alloc(); }
-//		m->socket_family = socket_family;
-//		m->socket_type   = socket_type;
-//		m->protocol      = protocol;
-//		m->addrlen       = addrlen;
-//		if(timeout && (timeout->tv_sec && timeout->tv_nsec)) {
-//			m->timeout_msec  = timeout->tv_sec + timeout->tv_nsec * 1e6;
-//		} else {
-//			m->timeout_msec  = -1;
-//		}
-//		::memcpy(m->addr, addr, addrlen);
-//	}
-//
-//	void operator() ()
-//	{
-//		int err = 0;
-//		int fd = ::socket(m->socket_family, m->socket_type, m->protocol);
-//		if(fd < 0) {
-//			err = errno;
-//			goto out;
-//		}
-//
-//		if(::fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
-//			goto error;
-//		}
-//
-//		if(::connect(fd, m->addr, m->addrlen) >= 0) {
-//			// connect success
-//			goto out;
-//		}
-//
-//		if(errno != EINPROGRESS) {
-//			goto error;
-//		}
-//
-//		while(true) {
-//			struct pollfd pf = {fd, POLLOUT, 0};
-//			int ret = ::poll(&pf, 1, m->timeout_msec);
-//			if(ret < 0) {
-//				if(errno == EINTR) { continue; }
-//				goto error;
-//			}
-//
-//			if(ret == 0) {
-//				errno = ETIMEDOUT;
-//				goto error;
-//			}
-//
-//			{
-//				int value = 0;
-//				int len = sizeof(value);
-//				if(::getsockopt(fd, SOL_SOCKET, SO_ERROR,
-//						&value, (socklen_t*)&len) < 0) {
-//					goto error;
-//				}
-//				if(value != 0) {
-//					errno = value;
-//					goto error;
-//				}
-//				goto out;
-//			}
-//		}
-//
-//	error:
-//		err = errno;
-//
-//		::close(fd);
-//		fd = -1;
-//
-//	out:
-//		::free(m);
-//		m_callback(fd, err);
-//	}
-//
-//private:
-//	pack* m;
-//	connect_callback_t m_callback;
-//
-//private:
-//	connect_task();
-//};
-//
-//
-//}  // noname namespace
-
-
-//void loop::connect(
-//		int socket_family, int socket_type, int protocol,
-//		const sockaddr* addr, socklen_t addrlen,
-//		const timespec* timeout, connect_callback_t callback)
-//{
-//	connect_task t(
-//			socket_family, socket_type, protocol,
-//			addr, addrlen, timeout, callback);
-//	submit(t);
-//}
-
-#if 0
-namespace {
-
-
-class connect_handler : public basic_handler {
-public:
-	typedef loop::connect_callback_t connect_callback_t;
-
-	connect_handler(int ident, connect_callback_t callback) :
-		basic_handler(ident, this),
-		m_done(false), m_callback(callback)
-	{ }
-
-	~connect_handler()
-	{ }
-
-	bool operator() (event& e)
-	{
-		int fd = ident();
-
-		if(!__sync_bool_compare_and_swap(&m_done, false, true)) {
-			::close(fd);
-			return false;
-		}
-
-		int err = 0;
-
-		int value = 0;
-		int len = sizeof(value);
-
-		if(::getsockopt(fd, SOL_SOCKET, SO_ERROR,
-				&value, (socklen_t*)&len) < 0) {
-			goto errno_error;
-		}
-
-		if(value != 0) {
-			err = value;
-			goto specific_error;
-		}
-
-		goto out;
-
-	errno_error:
-		err = errno;
-
-	specific_error:
-		::close(fd);
-		fd = -1;
-
-	out:
-		e.remove();
-		m_callback(fd, err);
-		return false;
-	}
-
-	class timeout_handler : kernel_timer, public basic_handler {
-	public:
-		timeout_handler(kernel& kern, const timespec* timeout,
-				shared_handler handler) :
-			kernel_timer(kern, timeout, NULL),
-			basic_handler(timer_ident(), this),
-			m_handler( static_pointer_cast<connect_handler>(handler) )
-		{ }
-
-		~timeout_handler() { }
-
-		bool operator() (event& e)
-		{
-			shared_ptr<connect_handler> h(m_handler.lock());
-			if(h) {
-				h->fail(ETIMEDOUT);
-			}
-			return false;
-		}
-
-	private:
-		weak_ptr<connect_handler> m_handler;
-	};
-
-	void set_timer(loop* lo, shared_ptr<timeout_handler>& timer)
-	{
-		m_loop = lo;
-		m_timer = weak_ptr<timeout_handler>(timer);
-	}
-
-	void fail(int err)
-	{
-		if(!__sync_bool_compare_and_swap(&m_done, false, true)) {
-			return;
-		}
-		m_callback(-1, err);
-	}
-
-private:
-	bool m_done;
-	connect_callback_t m_callback;
-
-	loop* m_loop;
-	weak_ptr<timeout_handler> m_timer;
-};
-
-
-}  // noname namespace
-
-
-void loop::connect(
-		int socket_family, int socket_type, int protocol,
-		const sockaddr* addr, socklen_t addrlen,
-		const timespec* timeout, connect_callback_t callback)
-{
-	shared_ptr<connect_handler> sh;
-
-	int err = 0;
-	int fd = ::socket(socket_family, socket_type, protocol);
-	if(fd < 0) {
-		err = errno;
-		goto out;
-	}
-
-	if(::fcntl(fd, F_SETFL, O_NONBLOCK) < 0) {
-		goto errno_error;
-	}
-
-	if(::connect(fd, addr, addrlen) >= 0) {
-		// connect success
-		goto out;
-	}
-
-	if(errno != EINPROGRESS) {
-		goto errno_error;
-	}
-
-	try {
-		// FIXME EVKERNEL_WRITE
-		sh = add_handler<connect_handler>(fd, callback);
-	} catch (...) {
-		err = 0;
-		goto specific_error;
-	}
-
-	if(timeout == NULL || (timeout->tv_sec == 0 &&
-				timeout->tv_nsec == 0)) {
-		return;
-	}
-
-	try {
-		shared_ptr<connect_handler::timeout_handler> timer(
-				new connect_handler::timeout_handler(
-					ANON_impl->get_kernel(), timeout, sh));
-
-		ANON_impl->set_handler(timer);
-
-		sh->set_timer(this, timer);
-
-		return;
-
-	} catch (const system_error& e) {
-		sh->fail(0);
-		return;
-
-	} catch (...) {
-		sh->fail(0);
-		return;
-	}
-
-errno_error:
-	err = errno;
-
-specific_error:
-	::close(fd);
-	fd = -1;
-
-out:
-	submit(callback, fd, err);
-}
-#endif
 
 
 //void loop::connect(

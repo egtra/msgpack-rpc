@@ -31,9 +31,6 @@
     <Filter Include="Header Files\mp">
       <UniqueIdentifier>{05494f2c-9d53-4f91-ab56-689c6940d62c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\mp">
-      <UniqueIdentifier>{dd8bc8ce-5675-4098-b881-765db8ebd7a7}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\mp-include">
       <UniqueIdentifier>{8a718d44-8c66-4480-bab2-ed28bb67880a}</UniqueIdentifier>
     </Filter>
@@ -208,18 +205,6 @@
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\mp\wavy_connect.cc">
-      <Filter>Source Files\mp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\mp\wavy_timer.cc">
-      <Filter>Source Files\mp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\mp\wavy_loop.cc">
-      <Filter>Source Files\mp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\mp\wavy_out.cc">
-      <Filter>Source Files\mp</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\msgpack\rpc\address.cc">
       <Filter>Source Files\msgpack-rpc</Filter>

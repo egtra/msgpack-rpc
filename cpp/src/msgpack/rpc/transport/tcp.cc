@@ -66,7 +66,7 @@ public:
 	void send_data(auto_vreflife vbuf);
 
 private:
-	typedef std::vector<client_socket*> sockpool_t;
+	typedef std::vector<mp::shared_ptr<client_socket> > sockpool_t;
 
 	struct sync_t {
 		sync_t() : sockpool_rr(0), connecting(0) { }
@@ -136,11 +136,7 @@ client_transport::~client_transport()
 	{
 		sync_ref ref(m_sync);
 		sockpool.swap(ref->sockpool);
-
-		for(sockpool_t::iterator it(sockpool.begin()), it_end(sockpool.end());
-				it != it_end; ++it) {
-			(*it)->remove_handler();
-		}
+		sockpool.clear();
 	}
 }
 
@@ -148,10 +144,10 @@ inline void client_transport::on_connect_success(SOCKET fd, sync_ref& ref)
 {
 	LOG_DEBUG("connect success to ",m_session->get_address()," fd=",fd);
 
-	mp::shared_ptr<client_socket> cs(new client_socket(fd, this, m_session));
+	mp::shared_ptr<client_socket> cs(std::make_shared<client_socket>(fd, this, m_session));
 	cs->async_read();
 
-	ref->sockpool.push_back(cs.get());
+	ref->sockpool.push_back(cs);
 
 	m_session->get_loop()->commit(fd, &ref->pending_xf);
 	ref->pending_xf.clear();
@@ -225,8 +221,8 @@ void client_transport::try_connect(sync_ref& lk_ref)
 void client_transport::on_close(client_socket* sock)
 {
 	sync_ref ref(m_sync);
-	sockpool_t::iterator found = std::find(
-			ref->sockpool.begin(), ref->sockpool.end(), sock);
+	sockpool_t::iterator found = std::find_if(
+			ref->sockpool.begin(), ref->sockpool.end(), mp::bind(std::equal_to<client_socket*>(), mp::bind(&mp::shared_ptr<client_socket>::get, _1), sock));
 	if(found != ref->sockpool.end()) {
 		ref->sockpool.erase(found);
 	}
@@ -246,7 +242,7 @@ void client_transport::send_data(sbuffer* sbuf)
 		sbuf->release();
 	} else {
 		// FIXME pesudo connecting load balance
-		client_socket* sock = ref->sockpool[0];
+		mp::shared_ptr<client_socket> sock = ref->sockpool[0];
 		sock->send_data(sbuf);
 	}
 }

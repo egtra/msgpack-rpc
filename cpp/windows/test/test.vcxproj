@@ -50,6 +50,8 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>MP_FUNCTIONAL_STANDARD;MP_MEMORY_STANDARD;MP_UNORDERED_MAP_STANDARD;MP_NO_CXX_ABI_H;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)..\..\src;$(ProjectDir)..\src</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MinimalRebuild>false</MinimalRebuild>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -66,6 +68,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>MP_FUNCTIONAL_STANDARD;MP_MEMORY_STANDARD;MP_UNORDERED_MAP_STANDARD;MP_NO_CXX_ABI_H;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)..\..\src;$(ProjectDir)..\src</AdditionalIncludeDirectories>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

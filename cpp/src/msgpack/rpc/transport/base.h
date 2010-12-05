@@ -59,11 +59,7 @@ public:
 	void send_data(sbuffer* sbuf);
 	void send_data(std::auto_ptr<vreflife> vbufife);
 
-	// mp::wavy::handler interface
-	// void on_read(mp::wavy::event& e);
-
 	void async_read();
-	void on_read2(::OVERLAPPED const& overlapped, DWORD transferred);
 
 	void on_message(object msg, auto_zone z);
 
@@ -88,6 +84,9 @@ public:
 protected:
 	unpacker m_pac;
 	loop m_loop;
+
+private:
+	static void on_read2(mp::weak_ptr<stream_handler> whandler, ::OVERLAPPED const& overlapped, DWORD transferred, DWORD error);
 };
 
 //template <typename MixIn>
@@ -150,11 +149,11 @@ inline stream_handler<MixIn>::stream_handler(SOCKET fd, loop lo) :
 template <typename MixIn>
 inline stream_handler<MixIn>::~stream_handler() { }
 
-template <typename MixIn>
-inline void stream_handler<MixIn>::remove_handler()
-{
+//template <typename MixIn>
+//inline void stream_handler<MixIn>::remove_handler()
+//{
 //	m_loop->remove_handler(fd());
-}
+//}
 
 
 //template <typename MixIn>
@@ -307,63 +306,18 @@ void stream_handler<MixIn>::on_message(object msg, auto_zone z)
 //}
 
 
-#if 0
-template <typename MixIn>
-void stream_handler<MixIn>::on_read(mp::wavy::event& e)
-try {
-	while(true) {
-		if(m_pac.execute()) {
-			object msg = m_pac.data();
-			LOG_TRACE("obj received: ",msg);
-			auto_zone z( m_pac.release_zone() );
-			m_pac.reset();
-
-			e.more();  // FIXME next()?
-			stream_handler<MixIn>::on_message(msg, z);
-			return;
-		}
-
-		m_pac.reserve_buffer(MSGPACK_RPC_STREAM_RESERVE_SIZE);
-
-		//ssize_t rl = ::read(ident(), m_pac.buffer(), m_pac.buffer_capacity());
-		//if(rl <= 0) {
-		//	if(rl == 0) { throw closed_exception(); }
-		//	if(errno == EAGAIN || errno == EINTR) { return; }
-		//	else { throw mp::system_error(errno, "read error"); }
-		//}
-		assert(0);
-
-		//m_pac.buffer_consumed(rl);
-	}
-
-} catch(msgpack::type_error&) {
-	LOG_WARN("connection: type error");
-	e.remove();
-	return;
-} catch(closed_exception&) {
-	e.remove();
-	return;
-} catch(std::exception& ex) {
-	LOG_WARN("connection: ", ex.what());
-	e.remove();
-	return;
-} catch(...) {
-	LOG_WARN("connection: unknown error");
-	e.remove();
-	return;
-}
-#endif
-
 template <typename MixIn>
 void stream_handler<MixIn>::async_read() {
+	using namespace mp::placeholders;
+
 	m_pac.reserve_buffer(MSGPACK_RPC_STREAM_RESERVE_SIZE);
 
 	WSABUF buf = {m_pac.buffer_capacity(), m_pac.buffer()};
 	DWORD flags = 0;
 	std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
-		mp::bind(&stream_handler<MixIn>::on_read2, mp::static_pointer_cast<stream_handler<MixIn>>(shared_from_this()), mp::placeholders::_1, mp::placeholders::_2)));
+		mp::bind(&stream_handler<MixIn>::on_read2, mp::weak_ptr<stream_handler>(mp::static_pointer_cast<stream_handler<MixIn> >(shared_from_this())), _1, _2, _3)));
 	int rl = ::WSARecv(ident(), &buf, 1, NULL, &flags, overlapped.get(), NULL);
-	if (rl != 0) {
+	if(rl != 0) {
 		int err = WSAGetLastError();
 		if (err != WSA_IO_PENDING) { throw mp::system_error(err, "read error"); }
 	}
@@ -372,36 +326,37 @@ void stream_handler<MixIn>::async_read() {
 }
 
 template <typename MixIn>
-void stream_handler<MixIn>::on_read2(::OVERLAPPED const& overlapped, DWORD transferred)
+void stream_handler<MixIn>::on_read2(mp::weak_ptr<stream_handler> whandler, ::OVERLAPPED const& overlapped, DWORD transferred, DWORD error)
 try {
-	m_pac.buffer_consumed(transferred);
-
-	while(m_pac.execute()) {
-		object msg = m_pac.data();
-		LOG_TRACE("obj received: ",msg);
-		auto_zone z( m_pac.release_zone() );
-		m_pac.reset();
-
-		//e.more();  // FIXME next()?
-		stream_handler<MixIn>::on_message(msg, z);
+	if(error != 0) {
+		throw mp::system_error(error, "async_read");
 	}
+	mp::shared_ptr<stream_handler> pthis(whandler.lock());
+	if(pthis) {
+		pthis->m_pac.buffer_consumed(transferred);
 
-	async_read();
+		while(pthis->m_pac.execute()) {
+			object msg = pthis->m_pac.data();
+			LOG_TRACE("obj received: ",msg);
+			auto_zone z( pthis->m_pac.release_zone() );
+			pthis->m_pac.reset();
+
+			pthis->on_message(msg, z);
+		}
+
+		pthis->async_read();
+	}
 
 } catch(msgpack::type_error&) {
 	LOG_WARN("connection: type error");
-//	e.remove();
 	return;
 } catch(closed_exception&) {
-//	e.remove();
 	return;
 } catch(std::exception& ex) {
 	LOG_WARN("connection: ", ex.what());
-//	e.remove();
 	return;
 } catch(...) {
 	LOG_WARN("connection: unknown error");
-//	e.remove();
 	return;
 }
 

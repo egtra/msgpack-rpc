@@ -18,11 +18,11 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	try {
 		//async_call_0();
-		//async_server();
+		async_server();
 		//sync_call();
 		//callback();
 		//error();
-		notify();
+		//notify();
 	} catch (std::exception const& e) {
 		std::cerr << e.what() << std::endl;
 	}
