@@ -1,4 +1,5 @@
 #include <queue>
+#include "cclog/cclog.h"
 #include "mp/unordered.h"
 #include "mp/pthread.h"
 #include "iocploop.h"
@@ -648,16 +649,42 @@ void loop::commit(SOCKET fd, xfer* xf)
 //void loop::write(int fd, const void* buf, size_t size)
 //	{ ANON_out->write(fd, buf, size); }
 
+namespace {
+
+void on_write(DWORD transferred, DWORD error, const void* buf, loop::finalize_t fin)
+{
+	if(error != 0) {
+		LOG_WARN("write error: ", mp::system_error::errno_string(error));
+	}
+	fin(const_cast<void*>(buf));
+}
+
+}  // noname space
+
 void loop::write(SOCKET fd,
 		const void* buf, size_t size,
 		finalize_t fin, void* user)
 {
-//	char xfbuf[ xfer_impl::sizeof_mem() + xfer_impl::sizeof_finalize() ];
-	char* xfbuf = static_cast<char*>(_alloca(xfer_impl::sizeof_mem() + xfer_impl::sizeof_finalize()));
-	char* p = xfbuf;
-	p = xfer_impl::fill_mem(p, buf, size);
-	p = xfer_impl::fill_finalize(p, fin, user);
-	ANON_out->commit_raw(fd, xfbuf, p);
+////	char xfbuf[ xfer_impl::sizeof_mem() + xfer_impl::sizeof_finalize() ];
+//	char* xfbuf = static_cast<char*>(_alloca(xfer_impl::sizeof_mem() + xfer_impl::sizeof_finalize()));
+//	char* p = xfbuf;
+//	p = xfer_impl::fill_mem(p, buf, size);
+//	p = xfer_impl::fill_finalize(p, fin, user);
+//	ANON_out->commit_raw(fd, xfbuf, p);
+
+	using namespace mp::placeholders;
+
+	assert(size <= std::numeric_limits<DWORD>::max());
+	WSABUF wb = {size, const_cast<char*>(static_cast<const char*>(buf))};
+	std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
+		mp::bind(&on_write, _2, _3, buf, fin)));
+	BOOL ret = ::WSASend(fd, &wb, 1, 0, 0, overlapped.get(), NULL);
+	if(ret != 0) {
+		int err = WSAGetLastError();
+		if (err != WSA_IO_PENDING) { throw mp::system_error(err, "write error"); }
+	}
+
+	overlapped.release();
 }
 
 //void loop::writev(int fd,
