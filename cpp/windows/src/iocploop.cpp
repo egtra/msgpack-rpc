@@ -1289,7 +1289,7 @@ void loop::connect(
 		goto error;
 	}
 
-#if 1
+#if 0
 	{
 		std::auto_ptr<connect_info> info(new connect_info);
 		info->hevent.reset(::CreateEvent(NULL, TRUE, FALSE, NULL));
@@ -1312,6 +1312,8 @@ void loop::connect(
 		}
 	}
 #else
+	using namespace mp::placeholders;
+
 	// TODO: IPv4ˆÈŠO‚Ö‚Ì‘Î‰ž
 	sockaddr_in sin;
 	sin.sin_family = AF_INET;
@@ -1335,7 +1337,7 @@ void loop::connect(
 		{
 			std::auto_ptr<overlapped_callback> overlapped(
 				new(std::nothrow) overlapped_callback(
-					mp::bind(callback, fd, 0)));
+					mp::bind(callback, fd, _3)));
 			if (overlapped.get() == 0)
 			{
 				err = ERROR_OUTOFMEMORY;
