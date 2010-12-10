@@ -142,13 +142,15 @@ ipv6_address::ipv6_address(const std::string& host, uint16_t port) :
 
 std::ostream& operator<< (std::ostream& stream, const address& a)
 {
-	if(a.family() == AF_INET) {
-		char buf[16];
-		return stream << inet_ntop(AF_INET, const_cast<IN_ADDR*>(&a.m.ipv4.sin_addr), buf, sizeof(buf)) << ':' << ntohs(a.m.ipv4.sin_port);
-
-	} else if(a.family() == AF_INET6) {
+	if(a.family() == AF_INET || a.family() == AF_INET6) {
 		char buf[41];
-		return stream << '[' << ::inet_ntop(AF_INET6, const_cast<IN6_ADDR*>(&a.m.ipv6.sin6_addr), buf, sizeof(buf)) << "]:" << ntohs(a.m.ipv6.sin6_port);
+		DWORD size = sizeof(buf);
+		sockaddr_storage addr;
+		a.get_addr(reinterpret_cast<sockaddr*>(&addr));
+		if(WSAAddressToStringA(reinterpret_cast<sockaddr*>(&addr), a.get_addrlen(), NULL, buf, &size) == 0) {
+			strcpy_s(buf, "(fail)");
+		}
+		return stream << buf << ':' << ntohs(a.m.ipv4.sin_port);
 
 	//} else if(a.family() == AF_LOCAL) {
 	//	return stream << ((struct sockaddr_un*)a.m.ex.addr)->sun_path;

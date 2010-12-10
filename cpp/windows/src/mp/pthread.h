@@ -77,15 +77,15 @@ public:
 	//}
 
 
-	bool operator== (const pthread_thread& other) const
-	{
-		return GetThreadId(m_thread) == GetThreadId(other.m_thread);
-	}
+	//bool operator== (const pthread_thread& other) const
+	//{
+	//	return m_thread == other.m_thread;
+	//}
 
-	bool operator!= (const pthread_thread& other) const
-	{
-		return !(*this == other);
-	}
+	//bool operator!= (const pthread_thread& other) const
+	//{
+	//	return !(*this == other);
+	//}
 
 
 	static void exit(void* retval = NULL)
