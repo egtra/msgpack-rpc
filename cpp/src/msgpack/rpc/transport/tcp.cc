@@ -287,18 +287,21 @@ private:
 
 
 class server_transport : public rpc::server_transport {
+	typedef mp::sync<std::vector<mp::shared_ptr<server_socket> > > sync_socket;
+	typedef sync_socket::ref sync_ref;
 public:
 	server_transport(server_impl* svr, const address& addr);
 	~server_transport();
 
 	void close();
 
-	static void on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > > sock);
+	static void on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_ptr<sync_socket> sock);
 
 private:
 	mp::shared_ptr<SOCKET> m_lsock;
 	loop m_loop;
-	mp::shared_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > > m_sock;
+
+	mp::shared_ptr<sync_socket> m_sock;
 
 private:
 	server_transport();
@@ -335,7 +338,7 @@ void server_socket::on_notify(
 
 
 server_transport::server_transport(server_impl* svr, const address& addr) :
-	m_lsock(), m_loop(svr->get_loop()), m_sock(std::make_shared<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > >())
+	m_lsock(), m_loop(svr->get_loop()), m_sock(std::make_shared<sync_socket>())
 {
 	sockaddr_storage addrbuf;
 	addr.get_addr((sockaddr*)&addrbuf);
@@ -347,7 +350,7 @@ server_transport::server_transport(server_impl* svr, const address& addr) :
 				&server_transport::on_accept,
 				_1, _2,
 				weak_server(mp::static_pointer_cast<server_impl>(svr->shared_from_this())),
-				mp::weak_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > >(m_sock)
+				mp::weak_ptr<sync_socket>(m_sock)
 				));
 }
 
@@ -359,17 +362,17 @@ server_transport::~server_transport()
 void server_transport::close()
 {
 	m_lsock.reset();
-	m_sock.reset();
+	m_sock->lock()->clear();
 }
 
-void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > > wsock)
+void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_ptr<sync_socket> wsock)
 {
 	shared_server svr = wsvr.lock();
 	if(!svr) {
 		return;
 	}
 
-	mp::shared_ptr<Concurrency::concurrent_vector<mp::shared_ptr<server_socket> > > sock = wsock.lock();
+	mp::shared_ptr<sync_socket> sock = wsock.lock();
 	if(!sock) {
 		return;
 	}
@@ -384,7 +387,7 @@ void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_
 	try {
 		mp::shared_ptr<server_socket> accepted_sock = std::make_shared<server_socket>(fd, svr);
 		accepted_sock->async_read();
-		sock->push_back(accepted_sock);
+		sock->lock()->push_back(accepted_sock);
 	} catch (...) {
 		::closesocket(fd);
 		throw;
