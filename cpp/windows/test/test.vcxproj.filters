@@ -53,5 +53,8 @@
     <ClCompile Include="notify.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="zone.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

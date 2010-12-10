@@ -248,20 +248,20 @@ void client_transport::send_data(sbuffer* sbuf)
 }
 
 void client_transport::send_data(auto_vreflife vbuf)
-{abort();
-//	sync_ref ref(m_sync);
-//	if(ref->sockpool.empty()) {
-//		if(ref->connecting == 0) {
-//			try_connect(ref);
-//			ref->connecting = 1;
-//		}
-//		ref->pending_xf.push_writev(vbuf->vector(), vbuf->vector_size());
-//		ref->pending_xf.push_finalize(vbuf);
-//	} else {
-//		// FIXME pesudo connecting load balance
-//		client_socket* sock = ref->sockpool[0];
-//		sock->send_data(vbuf);
-//	}
+{
+	sync_ref ref(m_sync);
+	if(ref->sockpool.empty()) {
+		if(ref->connecting == 0) {
+			try_connect(ref);
+			ref->connecting = 1;
+		}
+		ref->pending_xf.push_writev(vbuf->vector(), vbuf->vector_size());
+		ref->pending_xf.push_finalize(vbuf);
+	} else {
+		// FIXME pesudo connecting load balance
+		mp::shared_ptr<client_socket> sock = ref->sockpool[0];
+		sock->send_data(vbuf);
+	}
 }
 
 

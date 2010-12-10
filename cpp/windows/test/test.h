@@ -10,3 +10,4 @@ void sync_call();
 void callback();
 void error();
 void notify();
+void zone();

@@ -96,6 +96,7 @@
     </ClCompile>
     <ClCompile Include="sync_call.cc" />
     <ClCompile Include="test.cpp" />
+    <ClCompile Include="zone.cc" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\msgpack-rpc_vc10\msgpack-rpc_vc10.vcxproj">

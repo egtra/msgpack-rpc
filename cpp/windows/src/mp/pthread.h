@@ -87,7 +87,6 @@ public:
 	//	return !(*this == other);
 	//}
 
-
 	static void exit(void* retval = NULL)
 	{
 		ExitThread(0);

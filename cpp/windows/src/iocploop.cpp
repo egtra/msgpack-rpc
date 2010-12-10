@@ -162,10 +162,10 @@ private:
 namespace {
 
 // Compatible layout for WSABUF
-struct iovec {
-	unsigned long iov_len;
-	void *iov_base;
-};
+//struct iovec {
+//	unsigned long iov_len;
+//	void *iov_base;
+//};
 
 
 class xfer_impl : public xfer {
@@ -482,7 +482,17 @@ void xfer2::push_write(const void* buf, size_t size)
 //	m_tail = xfer_impl::fill_iovec(m_tail, vec, veclen);
 //	m_free -= sz;
 //}
-//
+
+void xfer2::push_writev(const struct iovec* vec, size_t veclen)
+{
+	sync_ref ref(m_sync);
+	ref->buffer.resize(ref->buffer.size() + veclen);
+	for(size_t i = 0; i < veclen; ++i) {
+		WSABUF b = {static_cast<ULONG>(vec[i].iov_len), static_cast<char*>(const_cast<void*>(vec[i].iov_base))};
+		ref->buffer.push_back(b);
+	}
+}
+
 //void xfer::push_sendfile(int infd, uint64_t off, size_t len)
 //{
 //	size_t sz = xfer_impl::sizeof_sendfile();
@@ -711,13 +721,21 @@ void loop::commit(SOCKET fd, xfer2* xf)
 
 namespace {
 
-void on_write(DWORD transferred, DWORD error, const void* buf, loop::finalize_t fin)
+void on_write(DWORD transferred, DWORD error, void* user, loop::finalize_t fin)
 {
 	if(error != 0) {
 		LOG_WARN("write error: ", mp::system_error::errno_string(error));
 	}
-	fin(const_cast<void*>(buf));
+	fin(user);
 }
+
+struct iovec_to_wsabuf : std::unary_function<const iovec&, WSABUF> {
+	result_type operator() (argument_type v) const
+	{
+		const WSABUF b = {v.iov_len, static_cast<char*>(const_cast<void*>(v.iov_base))};
+		return b;
+	}
+};
 
 }  // noname namespace
 
@@ -730,7 +748,7 @@ void loop::write(SOCKET fd,
 	assert(size <= std::numeric_limits<ULONG>::max());
 	WSABUF wb = {size, const_cast<char*>(static_cast<const char*>(buf))};
 	std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
-		mp::bind(&on_write, _2, _3, buf, fin)));
+		mp::bind(&on_write, _2, _3, user, fin)));
 	BOOL ret = ::WSASend(fd, &wb, 1, 0, 0, overlapped.get(), NULL);
 	if(ret != 0) {
 		int err = WSAGetLastError();
@@ -750,7 +768,30 @@ void loop::write(SOCKET fd,
 //	p = xfer_impl::fill_finalize(p, fin, user);
 //	ANON_out->commit_raw(fd, xfbuf, p);
 //}
-//
+
+void loop::writev(SOCKET fd,
+		const struct iovec* vec, size_t veclen,
+		finalize_t fin, void* user)
+{
+	using namespace mp::placeholders;
+
+	if(veclen > 0) {
+		std::vector<WSABUF> wb(veclen);
+		std::transform(vec, vec + veclen, wb.begin(), iovec_to_wsabuf());
+
+		assert(veclen <= std::numeric_limits<ULONG>::max());
+		std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
+			mp::bind(&on_write, _2, _3, user, fin)));
+		BOOL ret = ::WSASend(fd, &wb[0], 1, 0, 0, overlapped.get(), NULL);
+		if(ret != 0) {
+			int err = WSAGetLastError();
+			if (err != WSA_IO_PENDING) { throw mp::system_error(err, "write error"); }
+		}
+
+		overlapped.release();
+	}
+}
+
 //void loop::sendfile(int fd,
 //		int infd, uint64_t off, size_t size,
 //		finalize_t fin, void* user)

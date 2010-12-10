@@ -4,6 +4,7 @@
 #include <concurrent_vector.h>
 
 #include <mp/functional.h>
+#include <mp/object_delete.h>
 #include <mp/memory.h>
 #include <mp/sync.h>
 
@@ -134,12 +135,12 @@ public:
 	//		mp::shared_ptr<T> fin);
 
 
-	//void writev(int fd, const struct iovec* vec, size_t veclen,
-	//		finalize_t fin, void* user);
+	void writev(SOCKET fd, const struct iovec* vec, size_t veclen,
+			finalize_t fin, void* user);
 
-	//template <typename T>
-	//void writev(int fd, const struct iovec* vec, size_t veclen,
-	//		std::auto_ptr<T>& fin);
+	template <typename T>
+	void writev(SOCKET fd, const struct iovec* vec, size_t veclen,
+			std::auto_ptr<T>& fin);
 
 	//template <typename T>
 	//void writev(int fd, const struct iovec* vec, size_t veclen,
@@ -261,14 +262,14 @@ public:
 
 	void push_write(const void* buf, size_t size);
 
-	//void push_writev(const struct iovec* vec, size_t veclen);
+	void push_writev(const struct iovec* vec, size_t veclen);
 
 	//void push_sendfile(int infd, uint64_t off, size_t len);
 
 	void push_finalize(finalize_t fin, void* user);
 
-	//template <typename T>
-	//void push_finalize(std::auto_ptr<T> fin);
+	template <typename T>
+	void push_finalize(std::auto_ptr<T> fin);
 
 	//template <typename T>
 	//void push_finalize(mp::shared_ptr<T> fin);
@@ -412,7 +413,14 @@ inline bool xfer::empty() const
 //	push_finalize(&mp::object_delete<T>, reinterpret_cast<void*>(fin.get()));
 //	fin.release();
 //}
-//
+
+template <typename T>
+inline void xfer2::push_finalize(std::auto_ptr<T> fin)
+{
+	push_finalize(&mp::object_delete<T>, reinterpret_cast<void*>(fin.get()));
+	fin.release();
+}
+
 //template <typename T>
 //inline void xfer::push_finalize(mp::shared_ptr<T> fin)
 //{
@@ -435,15 +443,15 @@ inline bool xfer::empty() const
 //	std::auto_ptr<mp::shared_ptr<T> > afin(new mp::shared_ptr<T>(fin));
 //	write(fd, buf, size, afin);
 //}
-//
-//template <typename T>
-//inline void loop::writev(int fd, const struct iovec* vec, size_t veclen,
-//		std::auto_ptr<T>& fin)
-//{
-//	writev(fd, vec, veclen, &mp::object_delete<T>, fin.get());
-//	fin.release();
-//}
-//
+
+template <typename T>
+inline void loop::writev(SOCKET fd, const struct iovec* vec, size_t veclen,
+		std::auto_ptr<T>& fin)
+{
+	writev(fd, vec, veclen, &mp::object_delete<T>, fin.get());
+	fin.release();
+}
+
 //template <typename T>
 //inline void loop::writev(int fd, const struct iovec* vec, size_t veclen,
 //		mp::shared_ptr<T> fin)

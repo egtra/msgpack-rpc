@@ -181,8 +181,7 @@ inline void stream_handler<MixIn>::send_data(msgpack::sbuffer* sbuf)
 template <typename MixIn>
 inline void stream_handler<MixIn>::send_data(std::auto_ptr<vreflife> vbuf)
 {
-	abort();
-//	m_loop->writev(fd(), vbuf->vector(), vbuf->vector_size(), vbuf);
+	m_loop->writev(fd(), vbuf->vector(), vbuf->vector_size(), vbuf);
 }
 
 
