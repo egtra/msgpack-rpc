@@ -467,6 +467,14 @@ void xfer::push_write(const void* buf, size_t size)
 	m_free -= sz;
 }
 
+void xfer2::push_write(const void* buf, size_t size)
+{
+	assert(size <= std::numeric_limits<DWORD>::max());
+	WSABUF b = {static_cast<ULONG>(size), static_cast<char*>(const_cast<void*>(buf))};
+	sync_ref ref(m_sync);
+	ref->buffer.push_back(b);
+}
+
 //void xfer::push_writev(const struct iovec* vec, size_t veclen)
 //{
 //	size_t sz = xfer_impl::sizeof_iovec(veclen);
@@ -489,6 +497,13 @@ void xfer::push_finalize(finalize_t fin, void* user)
 	if(m_free < sz) { reserve(sz); }
 	m_tail = xfer_impl::fill_finalize(m_tail, fin, user);
 	m_free -= sz;
+}
+
+void xfer2::push_finalize(finalize_t fin, void* user)
+{
+	using namespace mp::placeholders;
+	sync_ref ref(m_sync);
+	ref->finalizer.push_back(mp::bind(fin, user));
 }
 
 void xfer::migrate(xfer* to)
@@ -543,6 +558,23 @@ void xfer::clear()
 //	m_free += m_tail - m_head;
 //	m_tail = m_head;
 //}
+
+namespace {
+	void self(const mp::function<void ()>& f)
+	{
+		f();
+	}
+}
+
+void xfer2::clear()
+{
+	using namespace mp::placeholders;
+
+	sync_ref ref(m_sync);
+	std::for_each(ref->finalizer.begin(), ref->finalizer.end(), self);
+	ref->finalizer.clear();
+	ref->buffer.clear();
+}
 
 
 //#define ANON_fdctx (*reinterpret_cast<mp::unordered_map<SOCKET, mp::shared_ptr<xfer_impl>*>(m_fdctx))
@@ -646,6 +678,34 @@ void out::commit(SOCKET fd, xfer* xf)
 void loop::commit(SOCKET fd, xfer* xf)
 	{ ANON_out->commit(fd, xf); }
 
+namespace {
+
+void on_write_xfer2(DWORD transferred, DWORD error, xfer2* xf)
+{
+	if(error != 0) {
+		LOG_WARN("write error (on_write_xfer2): ", mp::system_error::errno_string(error));
+	}
+	xf->clear();
+}
+
+}  // noname namespace
+
+void loop::commit(SOCKET fd, xfer2* xf)
+{
+	xfer2::sync_ref ref(xf->m_sync);
+	if(!ref->buffer.empty()) {
+		std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
+			mp::bind(&on_write_xfer2, _2, _3, xf)));
+		BOOL ret = ::WSASend(fd, &ref->buffer[0], ref->buffer.size(), 0, 0, overlapped.get(), NULL);
+		if(ret != 0) {
+			int err = WSAGetLastError();
+			if (err != WSA_IO_PENDING) { throw mp::system_error(err, "write error"); }
+		}
+
+		overlapped.release();
+	}
+}
+
 //void loop::write(int fd, const void* buf, size_t size)
 //	{ ANON_out->write(fd, buf, size); }
 
@@ -659,22 +719,15 @@ void on_write(DWORD transferred, DWORD error, const void* buf, loop::finalize_t 
 	fin(const_cast<void*>(buf));
 }
 
-}  // noname space
+}  // noname namespace
 
 void loop::write(SOCKET fd,
 		const void* buf, size_t size,
 		finalize_t fin, void* user)
 {
-////	char xfbuf[ xfer_impl::sizeof_mem() + xfer_impl::sizeof_finalize() ];
-//	char* xfbuf = static_cast<char*>(_alloca(xfer_impl::sizeof_mem() + xfer_impl::sizeof_finalize()));
-//	char* p = xfbuf;
-//	p = xfer_impl::fill_mem(p, buf, size);
-//	p = xfer_impl::fill_finalize(p, fin, user);
-//	ANON_out->commit_raw(fd, xfbuf, p);
-
 	using namespace mp::placeholders;
 
-	assert(size <= std::numeric_limits<DWORD>::max());
+	assert(size <= std::numeric_limits<ULONG>::max());
 	WSABUF wb = {size, const_cast<char*>(static_cast<const char*>(buf))};
 	std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
 		mp::bind(&on_write, _2, _3, buf, fin)));

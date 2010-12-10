@@ -5,6 +5,7 @@
 
 #include <mp/functional.h>
 #include <mp/memory.h>
+#include <mp/sync.h>
 
 
 namespace msgpack {
@@ -27,6 +28,7 @@ private:
 
 
 class xfer;
+class xfer2;
 
 class timer;
 
@@ -159,6 +161,7 @@ public:
 
 
 	void commit(SOCKET fd, xfer* xf);
+	void commit(SOCKET fd, xfer2* xf);
 
 
 	//void flush();
@@ -249,6 +252,41 @@ protected:
 
 private:
 	xfer(const xfer&);
+};
+
+
+class xfer2 {
+public:
+	typedef loop::finalize_t finalize_t;
+
+	void push_write(const void* buf, size_t size);
+
+	//void push_writev(const struct iovec* vec, size_t veclen);
+
+	//void push_sendfile(int infd, uint64_t off, size_t len);
+
+	void push_finalize(finalize_t fin, void* user);
+
+	//template <typename T>
+	//void push_finalize(std::auto_ptr<T> fin);
+
+	//template <typename T>
+	//void push_finalize(mp::shared_ptr<T> fin);
+
+	bool empty() const;
+
+	void clear();
+
+	friend class loop;
+
+private:
+	struct sync_t {
+		std::vector<WSABUF> buffer;
+		std::vector<mp::function<void ()> > finalizer;
+	};
+
+	typedef mp::sync<sync_t>::ref sync_ref;
+	mp::sync<sync_t> m_sync;
 };
 
 
@@ -361,6 +399,12 @@ inline bool xfer::empty() const
 {
 	return m_head == m_tail;
 }
+
+//inline bool xfer2::empty() const
+//{
+//	sync_ref ref(const_cast<mp::sync<sync_t>&>(m_sync));
+//	return ref->buffer.empty();
+//}
 
 //template <typename T>
 //inline void xfer::push_finalize(std::auto_ptr<T> fin)

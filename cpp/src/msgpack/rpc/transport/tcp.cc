@@ -73,7 +73,7 @@ private:
 		sockpool_t sockpool;
 		size_t sockpool_rr;
 		unsigned int connecting;
-		mp::wavy::xfer pending_xf;
+		mp::wavy::xfer2 pending_xf;
 	};
 
 	typedef mp::sync<sync_t>::ref sync_ref;
