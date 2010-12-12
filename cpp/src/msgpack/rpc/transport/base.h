@@ -86,7 +86,8 @@ protected:
 	loop m_loop;
 
 private:
-	static void on_read2(mp::weak_ptr<stream_handler> whandler, ::OVERLAPPED const& overlapped, DWORD transferred, DWORD error);
+protected:
+	static void on_read2(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred);
 };
 
 //template <typename MixIn>
@@ -148,12 +149,6 @@ inline stream_handler<MixIn>::stream_handler(SOCKET fd, loop lo) :
 
 template <typename MixIn>
 inline stream_handler<MixIn>::~stream_handler() { }
-
-//template <typename MixIn>
-//inline void stream_handler<MixIn>::remove_handler()
-//{
-//	m_loop->remove_handler(fd());
-//}
 
 
 //template <typename MixIn>
@@ -309,23 +304,14 @@ template <typename MixIn>
 void stream_handler<MixIn>::async_read() {
 	using namespace mp::placeholders;
 
+	mp::weak_ptr<stream_handler> whandler(mp::static_pointer_cast<stream_handler<MixIn> >(shared_from_this()));
 	m_pac.reserve_buffer(MSGPACK_RPC_STREAM_RESERVE_SIZE);
-
-	WSABUF buf = {m_pac.buffer_capacity(), m_pac.buffer()};
-	DWORD flags = 0;
-	std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
-		mp::bind(&stream_handler<MixIn>::on_read2, mp::weak_ptr<stream_handler>(mp::static_pointer_cast<stream_handler<MixIn> >(shared_from_this())), _1, _2, _3)));
-	int rl = ::WSARecv(ident(), &buf, 1, NULL, &flags, overlapped.get(), NULL);
-	if(rl != 0) {
-		int err = WSAGetLastError();
-		if (err != WSA_IO_PENDING) { throw mp::system_error(err, "read error"); }
-	}
-
-	overlapped.release();
+	m_loop->read(ident(), m_pac.buffer(), m_pac.buffer_capacity(),
+		mp::bind(on_read2, whandler, _1, _2));
 }
 
 template <typename MixIn>
-void stream_handler<MixIn>::on_read2(mp::weak_ptr<stream_handler> whandler, ::OVERLAPPED const& overlapped, DWORD transferred, DWORD error)
+void stream_handler<MixIn>::on_read2(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred)
 try {
 	if(error != 0) {
 		throw mp::system_error(error, "async_read");

@@ -28,7 +28,6 @@ private:
 };
 
 
-class xfer;
 class xfer2;
 
 class timer;
@@ -49,8 +48,18 @@ struct handle_deleter : std::unary_function<HANDLE, void>
 	}
 };
 
+struct socket_deleter : std::unary_function<SOCKET, void>
+{
+	typedef SOCKET pointer;
+
+	void operator ()(SOCKET h) const
+	{
+		::closesocket(h);
+	}
+};
 
 typedef std::unique_ptr<HANDLE, handle_deleter<::CloseHandle>> unique_handle;
+typedef std::unique_ptr<SOCKET, socket_deleter> unique_socket;
 typedef std::unique_ptr<HANDLE, handle_deleter<::UnregisterWait>> unique_wait_handle;
 
 
@@ -94,14 +103,24 @@ public:
 			double timeout_sec, connect_callback_t callback);
 
 
-	typedef mp::function<void (int fd, int err)> listen_callback_t;
+	typedef mp::function<void (unique_socket& fd, int err)> listen_callback_t;
 
-	mp::shared_ptr<SOCKET> listen(
+	mp::shared_ptr<SOCKET> listen_accept(
 			int socket_family, int socket_type, int protocol,
 			const sockaddr* addr, socklen_t addrlen,
 			listen_callback_t callback,
 			int backlog = 1024);
 
+	mp::shared_ptr<SOCKET> listen(
+			int socket_family, int socket_type, int protocol,
+			const sockaddr* addr, socklen_t addrlen,
+			int backlog = 1024);
+
+	unique_socket accept(SOCKET fd, sockaddr* addr, int addr_len);
+
+	typedef mp::function<void (DWORD error, DWORD transferred)> read_callback_t;
+
+	void accept_ex(SOCKET listen_socket, SOCKET accept_socket, void* buffer, size_t buffer_size, read_callback_t callback);
 
 	//int add_timer(const timespec* value, const timespec* interval,
 	//		function<bool ()> callback);
@@ -111,11 +130,7 @@ public:
 
 	//void remove_timer(int ident);
 
-
-	//int add_signal(int signo, function<bool ()> callback);
-
-	//void remove_signal(int ident);
-
+	void read(SOCKET fd, void* buf, size_t size, read_callback_t callback);
 
 
 	typedef void (*finalize_t)(void* user);
@@ -161,7 +176,6 @@ public:
 	//		finalize_t fin, void* user);
 
 
-	void commit(SOCKET fd, xfer* xf);
 	void commit(SOCKET fd, xfer2* xf);
 
 
@@ -217,47 +231,11 @@ private:
 };
 
 
-class xfer {
-public:
-	xfer();
-	~xfer();
-
-	typedef loop::finalize_t finalize_t;
-
-	void push_write(const void* buf, size_t size);
-
-	//void push_writev(const struct iovec* vec, size_t veclen);
-
-	//void push_sendfile(int infd, uint64_t off, size_t len);
-
-	void push_finalize(finalize_t fin, void* user);
-
-	//template <typename T>
-	//void push_finalize(std::auto_ptr<T> fin);
-
-	//template <typename T>
-	//void push_finalize(mp::shared_ptr<T> fin);
-
-	bool empty() const;
-
-	void clear();
-
-	void migrate(xfer* to);
-
-protected:
-	char* m_head;
-	char* m_tail;
-	size_t m_free;
-
-	void reserve(size_t reqsz);
-
-private:
-	xfer(const xfer&);
-};
-
-
 class xfer2 {
 public:
+	xfer2();
+	~xfer2();
+
 	typedef loop::finalize_t finalize_t;
 
 	void push_write(const void* buf, size_t size);
@@ -278,16 +256,24 @@ public:
 
 	void clear();
 
+	//void migrate(xfer* to);
+
 	friend class loop;
 
-private:
 	struct sync_t {
 		std::vector<WSABUF> buffer;
 		std::vector<mp::function<void ()> > finalizer;
+
+		void clear();
+		void swap(sync_t& y);
 	};
 
+private:
 	typedef mp::sync<sync_t>::ref sync_ref;
 	mp::sync<sync_t> m_sync;
+
+	xfer2(const xfer2&);
+	xfer2& operator= (const xfer2&);
 };
 
 
@@ -385,33 +371,17 @@ inline void loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16)); }
 
 
-inline xfer::xfer() :
-	m_head(NULL), m_tail(NULL), m_free(0) { }
+inline xfer2::xfer2() { }
 
-inline xfer::~xfer()
+inline xfer2::~xfer2()
 {
-	if(m_head) {
-		clear();
-		::free(m_head);
-	}
-}
-
-inline bool xfer::empty() const
-{
-	return m_head == m_tail;
+	clear();
 }
 
 //inline bool xfer2::empty() const
 //{
 //	sync_ref ref(const_cast<mp::sync<sync_t>&>(m_sync));
 //	return ref->buffer.empty();
-//}
-
-//template <typename T>
-//inline void xfer::push_finalize(std::auto_ptr<T> fin)
-//{
-//	push_finalize(&mp::object_delete<T>, reinterpret_cast<void*>(fin.get()));
-//	fin.release();
 //}
 
 template <typename T>
@@ -422,7 +392,7 @@ inline void xfer2::push_finalize(std::auto_ptr<T> fin)
 }
 
 //template <typename T>
-//inline void xfer::push_finalize(mp::shared_ptr<T> fin)
+//inline void xfer2::push_finalize(mp::shared_ptr<T> fin)
 //{
 //	std::auto_ptr<mp::shared_ptr<T> > afin(new mp::shared_ptr<T>(fin));
 //	push_finalize(afin);

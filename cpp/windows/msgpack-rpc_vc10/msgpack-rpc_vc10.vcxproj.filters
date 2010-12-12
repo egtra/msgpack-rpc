@@ -28,9 +28,6 @@
     <Filter Include="Header Files\msgpack-rpc\transport">
       <UniqueIdentifier>{fc9cae4a-35c2-409e-a1d7-44d8fa9569ac}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\mp">
-      <UniqueIdentifier>{05494f2c-9d53-4f91-ab56-689c6940d62c}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\mp-include">
       <UniqueIdentifier>{8a718d44-8c66-4480-bab2-ed28bb67880a}</UniqueIdentifier>
     </Filter>
@@ -153,15 +150,6 @@
     <ClInclude Include="..\..\src\msgpack\rpc\types.h">
       <Filter>Header Files\msgpack-rpc</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\mp\wavy_timer.h">
-      <Filter>Header Files\mp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\mp\wavy_loop.h">
-      <Filter>Header Files\mp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\mp\wavy_out.h">
-      <Filter>Header Files\mp</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\iocploop.h">
       <Filter>Header Files\windows-src</Filter>
     </ClInclude>
@@ -193,9 +181,6 @@
       <Filter>Header Files\mp-include</Filter>
     </ClInclude>
     <ClInclude Include="..\src\mp\utilize.h">
-      <Filter>Header Files\mp-include</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\mp\wavy.h">
       <Filter>Header Files\mp-include</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\cclog\cclog_debugoutput.h">

@@ -34,6 +34,7 @@ namespace mp {
 #include <boost/shared_ptr.hpp>
 #include <boost/weak_ptr.hpp>
 //#include <boost/scoped_ptr.hpp>
+#include <boost/interprocess/smart_ptr/unique_ptr.hpp>
 namespace mp {
 	using boost::shared_ptr;
 	using boost::weak_ptr;
@@ -41,6 +42,8 @@ namespace mp {
 	using boost::static_pointer_cast;
 	using boost::dynamic_pointer_cast;
 	using boost::enable_shared_from_this;
+	using boost::make_shared;
+	using boost::interprocess::unique_ptr;
 }
 #else
 #ifndef MP_MEMORY_STANDARD
@@ -58,10 +61,12 @@ namespace mp {
 namespace mp {
 	using std::shared_ptr;
 	using std::weak_ptr;
+	using std::unique_ptr;
 	//using std::scoped_ptr;
 	using std::static_pointer_cast;
 	using std::dynamic_pointer_cast;
 	using std::enable_shared_from_this;
+	using std::make_shared;
 }
 #endif
 #endif

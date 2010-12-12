@@ -88,9 +88,6 @@
     <ClInclude Include="..\..\src\cclog\cclog_ostream.h" />
     <ClInclude Include="..\..\src\cclog\cclog_syslog.h" />
     <ClInclude Include="..\..\src\cclog\cclog_tty.h" />
-    <ClInclude Include="..\..\src\mp\wavy_loop.h" />
-    <ClInclude Include="..\..\src\mp\wavy_out.h" />
-    <ClInclude Include="..\..\src\mp\wavy_timer.h" />
     <ClInclude Include="..\..\src\msgpack\rpc\address.h" />
     <ClInclude Include="..\..\src\msgpack\rpc\caller.h" />
     <ClInclude Include="..\..\src\msgpack\rpc\client.h" />
@@ -131,7 +128,6 @@
     <ClInclude Include="..\src\mp\unordered_map.h" />
     <ClInclude Include="..\src\mp\unordered_set.h" />
     <ClInclude Include="..\src\mp\utilize.h" />
-    <ClInclude Include="..\src\mp\wavy.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>

@@ -23,7 +23,7 @@
 #include <mp/sync.h>
 #include <mp/utilize.h>
 #include <vector>
-#include <concurrent_vector.h>
+#include <mswsock.h>
 
 namespace msgpack {
 namespace rpc {
@@ -185,13 +185,18 @@ void client_transport::on_connect(SOCKET fd, int err, weak_session ws, client_tr
 	sync_ref ref(self->m_sync);
 
 	if(fd != INVALID_SOCKET) {
-		// success
-		try {
-			self->on_connect_success(fd, ref);
-			return;
-		} catch (...) {
-			::closesocket(fd);
-			LOG_WARN("attach failed or send pending failed");
+		if(setsockopt(fd, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) == 0) {
+			// success
+			try {
+				self->on_connect_success(fd, ref);
+				return;
+			} catch (...) {
+				::closesocket(fd);
+				err = E_UNEXPECTED;
+				LOG_WARN("attach failed or send pending failed");
+			}
+		} else {
+			err = WSAGetLastError();
 		}
 	}
 
@@ -267,7 +272,8 @@ void client_transport::send_data(auto_vreflife vbuf)
 
 class server_socket : public stream_handler<server_socket> {
 public:
-	server_socket(int sock, shared_server svr);
+	server_socket(SOCKET sock, shared_server svr);
+	server_socket(shared_server svr);
 	~server_socket();
 
 	void on_request(
@@ -277,6 +283,9 @@ public:
 	void on_notify(
 			object method, object params, auto_zone z);
 
+	void accept_ex(SOCKET lsock, mp::function<void ()> accept_callback);
+
+	static void on_accept_ex(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred, SOCKET lsock, mp::function<void ()> callback);
 private:
 	weak_server m_svr;
 
@@ -295,10 +304,13 @@ public:
 
 	void close();
 
-	static void on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_ptr<sync_socket> sock);
+	static void next_accept_ex(mp::weak_ptr<SOCKET> wlsock, mp::weak_ptr<server_impl> wsvr, mp::weak_ptr<sync_socket> wsock);
+
+	static void on_accept(impl::windows::unique_socket& fd, int err, weak_server wsvr, mp::weak_ptr<sync_socket> sock);
 
 private:
 	mp::shared_ptr<SOCKET> m_lsock;
+	mp::weak_ptr<server_impl> m_svr;
 	loop m_loop;
 
 	mp::shared_ptr<sync_socket> m_sock;
@@ -309,8 +321,12 @@ private:
 };
 
 
-server_socket::server_socket(int sock, shared_server svr) :
+server_socket::server_socket(SOCKET sock, shared_server svr) :
 	stream_handler<server_socket>(sock, svr->get_loop()),
+	m_svr(svr) { }
+
+server_socket::server_socket(shared_server svr) :
+	stream_handler<server_socket>(::socket(AF_INET, SOCK_STREAM, 0), svr->get_loop()),
 	m_svr(svr) { }
 
 server_socket::~server_socket() { }
@@ -336,14 +352,33 @@ void server_socket::on_notify(
 	svr->on_notify(method, params, z);
 }
 
+void server_socket::accept_ex(SOCKET lsock, mp::function<void ()> accept_callback)
+{
+	using namespace mp::placeholders;
+
+	mp::weak_ptr<stream_handler> whandler(mp::static_pointer_cast<stream_handler>(shared_from_this()));
+	m_pac.reserve_buffer(MSGPACK_RPC_STREAM_RESERVE_SIZE);
+	m_loop->accept_ex(lsock, ident(), m_pac.buffer(), m_pac.buffer_capacity(), mp::bind(on_accept_ex, whandler, _1, _2, lsock, accept_callback));
+}
+
+void server_socket::on_accept_ex(mp::weak_ptr<stream_handler<server_socket> > whandler, DWORD error, DWORD transferred, SOCKET lsock, mp::function<void ()> callback)
+{
+	mp::shared_ptr<stream_handler<server_socket> > handler = whandler.lock();
+	if(handler) {
+		setsockopt(handler->fd(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&lsock), sizeof (lsock));
+	}
+	on_read2(whandler, error, transferred);
+	callback();
+}
+
 
 server_transport::server_transport(server_impl* svr, const address& addr) :
-	m_lsock(), m_loop(svr->get_loop()), m_sock(std::make_shared<sync_socket>())
+	m_lsock(), m_svr(mp::static_pointer_cast<server_impl>(svr->shared_from_this())), m_loop(svr->get_loop()), m_sock(std::make_shared<sync_socket>())
 {
 	sockaddr_storage addrbuf;
 	addr.get_addr((sockaddr*)&addrbuf);
-
-	m_lsock = m_loop->listen(
+#if 0
+	m_lsock = m_loop->listen_accept(
 			PF_INET, SOCK_STREAM, 0,
 			(sockaddr*)&addrbuf, addr.get_addrlen(),
 			mp::bind(
@@ -352,6 +387,25 @@ server_transport::server_transport(server_impl* svr, const address& addr) :
 				weak_server(mp::static_pointer_cast<server_impl>(svr->shared_from_this())),
 				mp::weak_ptr<sync_socket>(m_sock)
 				));
+#else
+	m_lsock = m_loop->listen(
+			PF_INET, SOCK_STREAM, 0,
+			(sockaddr*)&addrbuf, addr.get_addrlen());
+
+	next_accept_ex(m_lsock, m_svr, m_sock);
+#endif
+}
+
+void server_transport::next_accept_ex(mp::weak_ptr<SOCKET> wlsock, mp::weak_ptr<server_impl> wsvr, mp::weak_ptr<sync_socket> wsock)
+{
+	mp::shared_ptr<SOCKET> lsock = wlsock.lock();
+	mp::shared_ptr<server_impl> svr = wsvr.lock();
+	mp::shared_ptr<sync_socket> sock = wsock.lock();
+	if(lsock && svr && sock) {
+		mp::shared_ptr<server_socket> accept_sock = std::make_shared<server_socket>(svr);
+		accept_sock->accept_ex(*lsock, mp::bind(&server_transport::next_accept_ex, wlsock, wsvr, wsock));
+		sock->lock()->push_back(accept_sock);
+	}
 }
 
 server_transport::~server_transport()
@@ -365,7 +419,7 @@ void server_transport::close()
 	m_sock->lock()->clear();
 }
 
-void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_ptr<sync_socket> wsock)
+void server_transport::on_accept(impl::windows::unique_socket& fd, int err, weak_server wsvr, mp::weak_ptr<sync_socket> wsock)
 {
 	shared_server svr = wsvr.lock();
 	if(!svr) {
@@ -377,21 +431,16 @@ void server_transport::on_accept(SOCKET fd, int err, weak_server wsvr, mp::weak_
 		return;
 	}
 
-	// FIXME
-	if(fd == INVALID_SOCKET) {
-		LOG_DEBUG("accept failed");
-		return;
-	}
-	LOG_TRACE("accepted fd=",fd);
+	//// FIXME
+	//if(fd == INVALID_SOCKET) {
+	//	LOG_DEBUG("accept failed");
+	//	return;
+	//}
+	LOG_TRACE("accepted fd=",fd.get());
 
-	try {
-		mp::shared_ptr<server_socket> accepted_sock = std::make_shared<server_socket>(fd, svr);
-		accepted_sock->async_read();
-		sock->lock()->push_back(accepted_sock);
-	} catch (...) {
-		::closesocket(fd);
-		throw;
-	}
+	mp::shared_ptr<server_socket> accepted_sock = std::make_shared<server_socket>(fd.release(), svr);
+	accepted_sock->async_read();
+	sock->lock()->push_back(accepted_sock);
 }
 
 

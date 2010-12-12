@@ -25,7 +25,6 @@
 #endif
 #include <mp/memory.h>
 
-
 namespace msgpack {
 namespace rpc {
 
