@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include <boost/scope_exit.hpp>
+#include <cclog/cclog_console.h>
 #include <cclog/cclog_debugoutput.h>
 #include "test.h"
 
@@ -14,20 +15,27 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	BOOST_SCOPE_EXIT_END
 
+	cclog::reset(new cclog_console(cclog::TRACE, GetStdHandle(STD_OUTPUT_HANDLE)));
+
+	LOG_TRACE("(level TRACE)");
+	LOG_DEBUG("(level DEBUG)");
+	LOG_INFO ("(level INFO)");
+	LOG_WARN ("(level WARN)");
+	LOG_ERROR("(level ERROR)");
+
 	cclog::reset(new cclog_debugoutput(cclog::TRACE));
 
 	try {
 		//async_call_0();
-		//async_server();
+		async_server();
 		//sync_call();
 		//callback();
 		//error();
 		//notify();
-		zone();
+		//zone();
 	} catch (std::exception const& e) {
 		std::cerr << e.what() << std::endl;
 	}
 
 	return 0;
 }
-

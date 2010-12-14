@@ -186,6 +186,9 @@
     <ClInclude Include="..\..\src\cclog\cclog_debugoutput.h">
       <Filter>Header Files\cclog</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\cclog\cclog_console.h">
+      <Filter>Header Files\cclog</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -249,6 +252,9 @@
       <Filter>Source Files\windows-src</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\cclog\cclog_debugoutput.cc">
+      <Filter>Source Files\cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\cclog\cclog_console.cc">
       <Filter>Source Files\cclog</Filter>
     </ClCompile>
   </ItemGroup>

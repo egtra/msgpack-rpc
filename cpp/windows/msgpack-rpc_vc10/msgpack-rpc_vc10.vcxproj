@@ -83,6 +83,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\cclog\cclog.h" />
+    <ClInclude Include="..\..\src\cclog\cclog_console.h" />
     <ClInclude Include="..\..\src\cclog\cclog_debugoutput.h" />
     <ClInclude Include="..\..\src\cclog\cclog_null.h" />
     <ClInclude Include="..\..\src\cclog\cclog_ostream.h" />
@@ -133,6 +134,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\cclog\cclog.cc" />
+    <ClCompile Include="..\..\src\cclog\cclog_console.cc" />
     <ClCompile Include="..\..\src\cclog\cclog_debugoutput.cc" />
     <ClCompile Include="..\..\src\cclog\cclog_null.cc" />
     <ClCompile Include="..\..\src\cclog\cclog_ostream.cc" />
