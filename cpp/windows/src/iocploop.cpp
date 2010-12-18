@@ -20,35 +20,33 @@ using mp::timespec;
 
 namespace {
 
-	typedef std::pair<mp::function<void (bool)>, HANDLE> wait_callback_object;
+typedef std::pair<mp::function<void (bool)>, HANDLE> wait_callback_object;
 
-	void CALLBACK wait_callback(void* parameter, BOOLEAN timer_or_wait_fired)
-	{
-		std::auto_ptr<wait_callback_object> p(static_cast<wait_callback_object*>(parameter));
-		::PostQueuedCompletionStatus(p->second, 0, 0, new overlapped_callback(mp::bind(p->first, timer_or_wait_fired != FALSE)));
+void CALLBACK wait_callback(void* parameter, BOOLEAN timer_or_wait_fired)
+{
+	std::auto_ptr<wait_callback_object> p(static_cast<wait_callback_object*>(parameter));
+	::PostQueuedCompletionStatus(p->second, 0, 0, new overlapped_callback(mp::bind(p->first, timer_or_wait_fired != FALSE)));
+}
+
+unique_wait_handle register_wait_for_single_object(HANDLE hiocp, HANDLE hobject, mp::function<void (bool)> callback, ULONG milliseconds, ULONG flags)
+{
+	HANDLE hwait;
+	std::auto_ptr<wait_callback_object> p(new wait_callback_object(callback, hiocp));
+	if(::RegisterWaitForSingleObject(&hwait, hobject, wait_callback, p.get(), milliseconds, flags)) {
+		p.release();
+		return unique_wait_handle(hwait);
+	} else {
+		throw mp::system_error(GetLastError(), "RegisterWaitForSingleobject failed");
 	}
+}
 
-	unique_wait_handle register_wait_for_single_object(HANDLE hiocp, HANDLE hobject, mp::function<void (bool)> callback, ULONG milliseconds, ULONG flags)
-	{
-		HANDLE hwait;
-		std::auto_ptr<wait_callback_object> p(new wait_callback_object(callback, hiocp));
-		if(::RegisterWaitForSingleObject(&hwait, hobject, wait_callback, p.get(), milliseconds, flags)) {
-			p.release();
-			return unique_wait_handle(hwait);
-		} else {
-			throw mp::system_error(GetLastError(), "RegisterWaitForSingleobject failed");
-		}
+unique_socket make_socket(int af, int type, int protocol)
+{
+	SOCKET s = ::socket(af, type, protocol);
+	if(s == INVALID_SOCKET) {
+		throw mp::system_error(WSAGetLastError(), "socket failed");
 	}
-
-	unique_socket make_socket(int af, int type, int protocol)
-	{
-		SOCKET s = ::socket(af, type, protocol);
-		if(s == INVALID_SOCKET) {
-			throw mp::system_error(WSAGetLastError(), "socket failed");
-		}
-		return unique_socket(s);
-	}
-
+	return unique_socket(s);
 }
 
 // wavy_loop.h
@@ -72,7 +70,6 @@ public:
 	bool is_end() const;
 
 	void run_once();
-	void run_once(pthread_scoped_lock& lk);
 
 	void join();
 	void detach();
@@ -81,15 +78,19 @@ public:
 
 	void submit_impl(task_t& f);
 
-	void flush();
-
 public:
+	enum dispatch_result_t {
+		dispatch_end,
+		dispatch_timeout,
+	};
+
+	dispatch_result_t dispatch(DWORD timeout);
 	void thread_main();
 	inline void do_task(pthread_scoped_lock& lk);
 	inline void do_out(pthread_scoped_lock& lk);
 
 private:
-//	pthread_mutex m_mutex;
+	pthread_mutex m_mutex;
 //	pthread_cond m_cond;
 
 	mp::function<void ()> m_thread_init_func;
@@ -112,12 +113,13 @@ private:
 };
 
 
+}
+
+
 #define ANON_impl static_cast<loop_impl*>(m_impl)
 
 void loop::read(SOCKET fd, void* buf, size_t size, read_callback_t callback)
 {
-	using namespace mp::placeholders;
-
 	WSABUF wb = { size, static_cast<char*>(buf) };
 	DWORD flags = 0;
 	std::auto_ptr<overlapped_callback> overlapped(
@@ -246,8 +248,6 @@ void loop::write(SOCKET fd,
 		const void* buf, size_t size,
 		finalize_t fin, void* user)
 {
-	using namespace mp::placeholders;
-
 	assert(size <= std::numeric_limits<ULONG>::max());
 	WSABUF wb = {size, const_cast<char*>(static_cast<const char*>(buf))};
 	std::auto_ptr<impl::windows::overlapped_callback> overlapped(new impl::windows::overlapped_callback(
@@ -265,8 +265,6 @@ void loop::writev(SOCKET fd,
 		const struct iovec* vec, size_t veclen,
 		finalize_t fin, void* user)
 {
-	using namespace mp::placeholders;
-
 	if(veclen > 0) {
 		std::vector<WSABUF> wb(veclen);
 		std::transform(vec, vec + veclen, wb.begin(), iovec_to_wsabuf());
@@ -325,8 +323,9 @@ void loop::writev(SOCKET fd,
 
 // wavy_loop.cc
 
+namespace {
+
 loop_impl::loop_impl(mp::function<void ()> thread_init_func) :/*
-	m_off(0), m_num(0), m_pollable(true),
 	m_thread_init_func(thread_init_func),*/
 	m_end_flag(false),
 	hiocp(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 8))
@@ -341,14 +340,13 @@ loop_impl::~loop_impl()
 	//	pthread_scoped_lock lk(m_mutex);
 	//	m_cond.broadcast();
 	//}
-	//delete[] m_state;
 }
 
 void loop_impl::end()
 {
 	m_end_flag = true;
 	{
-//		pthread_scoped_lock lk(m_mutex);
+		pthread_scoped_lock lk(m_mutex);
 		for (size_t i = 0; i < m_workers.size(); ++i) {
 			::PostQueuedCompletionStatus(hiocp.get(), 0, COMPLATE_KEY_END, 0);
 		}
@@ -381,7 +379,7 @@ void loop_impl::detach()
 
 void loop_impl::start(size_t num)
 {
-//	pthread_scoped_lock lk(m_mutex);
+	pthread_scoped_lock lk(m_mutex);
 	if(is_running()) {
 		// FIXME exception
 		throw std::runtime_error("loop is already running");
@@ -391,6 +389,10 @@ void loop_impl::start(size_t num)
 
 void loop_impl::add_thread(size_t num)
 {
+	if(m_end_flag) {
+		return;
+	}
+
 	for(size_t i=0; i < num; ++i) {
 		m_workers.push_back( pthread_thread() );
 		try {
@@ -410,59 +412,22 @@ bool loop_impl::is_running() const
 
 void loop_impl::submit_impl(task_t& f)
 {
-	//pthread_scoped_lock lk(m_mutex);
 	::PostQueuedCompletionStatus(hiocp.get(), 0, 0, new overlapped_callback(mp::bind(f)));
 }
 
 
-void loop_impl::thread_main()
+loop_impl::dispatch_result_t loop_impl::dispatch(DWORD timeout)
 {
 	while(true) {
 		DWORD transferred;
 		ULONG_PTR key;
 		OVERLAPPED* poverlapped;
-		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, INFINITE);
-		DWORD lastError = GetLastError();
-
-		if(ret && key == COMPLATE_KEY_END) {
-			break;
-		}
-
-		if(poverlapped != NULL) {
-			std::auto_ptr<overlapped_callback> oc(static_cast<overlapped_callback*>(poverlapped));
-			if (oc->callback) {
-				oc->callback(*poverlapped, transferred,
-					ret
-					? 0
-					: lastError);
-			}
-		}
-		else if(!ret) {
-			if (lastError == WAIT_TIMEOUT) {
-				break;
-			} else {
-				throw mp::system_error(lastError, "GetQueuedCompletionStatus");
-			}
-		}	}
-}
-
-//inline void loop_impl::run_once()
-//{
-//	pthread_scoped_lock lk(m_mutex);
-//	run_once(lk);
-//}
-inline void loop_impl::run_once()
-{
-	while(true) {
-		DWORD transferred;
-		ULONG_PTR key;
-		OVERLAPPED* poverlapped;
-		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, 0);
+		BOOL ret = GetQueuedCompletionStatus(hiocp.get(), &transferred, &key, &poverlapped, timeout);
 		DWORD lastError = GetLastError();
 
 		if(ret && key == COMPLATE_KEY_END) {
 			PostQueuedCompletionStatus(hiocp.get(), 0, COMPLATE_KEY_END, 0);
-			break;
+			return dispatch_end;
 		}
 
 		if(poverlapped != NULL) {
@@ -473,10 +438,9 @@ inline void loop_impl::run_once()
 					? 0
 					: lastError);
 			}
-		}
-		else if(!ret) {
+		} else if(!ret) {
 			if (lastError == WAIT_TIMEOUT) {
-				break;
+				return dispatch_timeout;
 			} else {
 				throw mp::system_error(lastError, "GetQueuedCompletionStatus");
 			}
@@ -484,114 +448,26 @@ inline void loop_impl::run_once()
 	}
 }
 
-//void loop_impl::run_once(pthread_scoped_lock& lk)
-//{
-//	if(m_end_flag) { return; }
-//
-//	kernel::event ke;
-//
-//	if(!m_more_queue.empty()) {
-//		ke = m_more_queue.front();
-//		m_more_queue.pop();
-//		goto process_handler;
-//	}
-//
-//	if(!m_pollable) {
-//		if(m_out->has_queue()) {
-//			do_out(lk);
-//		} else if(!m_task_queue.empty()) {
-//			do_task(lk);
-//		} else {
-//			m_cond.wait(m_mutex);
-//		}
-//		return;
-//	} else if(!m_task_queue.empty()) {
-//		do_task(lk);
-//		return;
-//	} else if(m_out->has_queue()) {
-//		do_out(lk);  // FIXME
-//		return;
-//	}
-//
-//	if(m_num == m_off) {
-//		m_pollable = false;
-//		lk.unlock();
-//
-//		int num = m_kernel.wait(&m_backlog, 1000);
-//
-//		if(num <= 0) {
-//			if(num == 0 || errno == EINTR || errno == EAGAIN) {
-//				m_pollable = true;
-//				return;
-//			} else {
-//				throw system_error(errno, "wavy kernel event failed");
-//			}
-//		}
-//
-//		lk.relock(m_mutex);
-//		m_off = 0;
-//		m_num = num;
-//
-//		m_pollable = true;
-//		m_cond.signal();
-//	}
-//
-//	ke = m_backlog[m_off++];
-//
-//	process_handler:
-//	int ident = ke.ident();
-//
-//	if(ident == m_out->ident()) {
-//		m_out->poll_event();
-//		lk.unlock();
-//
-//		m_kernel.reactivate(ke);
-//
-//	} else {
-//		lk.unlock();
-//
-//		event_impl e(this, ke);
-//		shared_handler h = m_state[ident];
-//
-//		bool cont = false;
-//		if(h) {
-//			try {
-//				cont = (*h)(e);
-//			} catch (...) { }
-//		}
-//
-//		if(!e.is_reactivated()) {
-//			if(e.is_removed()) {
-//				return;
-//			}
-//			if(!cont) {
-//				m_kernel.remove(ke);
-//				reset_handler(ident);
-//				return;
-//			}
-//			m_kernel.reactivate(ke);
-//		}
-//	}
-//}
-//
-//
-//void loop_impl::flush()
-//{
-//	pthread_scoped_lock lk(m_mutex);
-//	while(!m_out->empty() || !m_task_queue.empty()) {
-//		if(is_running()) {
-//			m_flush_cond.wait(m_mutex);
-//		} else {
-//			run_once(lk);
-//			if(!lk.owns()) {
-//				lk.relock(m_mutex);
-//			}
-//		}
-//	}
-//}
-//
-//
-//}  // noname namespace
+void loop_impl::thread_main()
+{
+	while(dispatch(INFINITE) != dispatch_end) {
+		;
+	}
+}
+
+inline void loop_impl::run_once()
+{
+	if(m_end_flag) {
+		return;
+	}
+
+	if(dispatch(0) == dispatch_end) {
+		PostQueuedCompletionStatus(hiocp.get(), 0, COMPLATE_KEY_END, 0);
+	}
+}
+
+
+}  // noname namespace
 
 
 loop::loop() : m_impl(new loop_impl()) { }
@@ -630,9 +506,6 @@ void loop::join()
 
 void loop::submit_impl(task_t f)
 	{ ANON_impl->submit_impl(f); }
-
-//void loop::flush()
-//	{ ANON_impl->flush(); }
 
 // wavy_timer.h
 
@@ -832,8 +705,6 @@ void loop::connect(
 		}
 	}
 #else
-	using namespace mp::placeholders;
-
 	// TODO: IPv4ˆÈŠO‚Ö‚Ì‘Î‰ž
 	sockaddr_in sin;
 	sin.sin_family = AF_INET;
@@ -960,16 +831,12 @@ mp::shared_ptr<SOCKET> loop::listen(
 		const sockaddr* addr, socklen_t addrlen,
 		int backlog)
 {
-	SOCKET lsock = ::socket(socket_family, socket_type, protocol);
+	SOCKET lsock = ::WSASocket(socket_family, socket_type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if(lsock == INVALID_SOCKET) {
 		throw mp::system_error(errno, "socket() failed");
 	}
 
 	mp::shared_ptr<SOCKET> ret = std::make_shared<SOCKET>(lsock);
-
-	if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(lsock), ANON_impl->hiocp.get(), 0, 0) == NULL) {
-		throw mp::system_error(GetLastError(), "CreateIoCompletionPort failed");
-	}
 
 	BOOL on = TRUE;
 	if(::setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&on), sizeof(on)) != 0) {
@@ -982,6 +849,10 @@ mp::shared_ptr<SOCKET> loop::listen(
 	
 	if(::listen(lsock, backlog) != 0) {
 		throw mp::system_error(WSAGetLastError(), "listen failed");
+	}
+
+	if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(lsock), ANON_impl->hiocp.get(), 0, 0) == NULL) {
+		throw mp::system_error(GetLastError(), "CreateIoCompletionPort failed");
 	}
 
 	return std::make_shared<SOCKET>(lsock);

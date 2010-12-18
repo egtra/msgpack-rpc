@@ -179,9 +179,6 @@ public:
 	void commit(SOCKET fd, xfer2* xf);
 
 
-	//void flush();
-
-
 	template <typename F>
 	void submit(F f);
 	template <typename F, typename A1>
