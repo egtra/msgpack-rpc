@@ -1,8 +1,6 @@
 #ifndef IOCPLOOP_H__
 #define IOCPLOOP_H__
 
-#include <concurrent_vector.h>
-
 #include <mp/functional.h>
 #include <mp/object_delete.h>
 #include <mp/memory.h>
@@ -29,9 +27,6 @@ private:
 
 
 class xfer2;
-
-class timer;
-
 
 
 typedef int socklen_t;
@@ -125,7 +120,7 @@ public:
 	//int add_timer(const timespec* value, const timespec* interval,
 	//		function<bool ()> callback);
 
-	int add_timer(double value_sec, double interval_sec,
+	intptr_t add_timer(double value_sec, double interval_sec,
 			mp::function<bool ()> callback);
 
 	//void remove_timer(int ident);
@@ -218,8 +213,6 @@ public:
 private:
 	typedef mp::function<void ()> task_t;
 	void submit_impl(task_t f);
-
-	Concurrency::concurrent_vector<std::shared_ptr<timer>> timers;
 
 private:
 	void* m_impl;

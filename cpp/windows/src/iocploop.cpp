@@ -49,12 +49,60 @@ unique_socket make_socket(int af, int type, int protocol)
 	return unique_socket(s);
 }
 
-// wavy_loop.h
+
+class timer {
+public:
+	timer(HANDLE hiocp, int64_t value_100nsec, int interval_msec,
+			mp::function<bool ()> callback)
+			: htimer(::CreateWaitableTimer(nullptr, FALSE, nullptr)), hiocp(hiocp), callback(callback)
+	{
+		assert(htimer != NULL);
+
+		LARGE_INTEGER value;
+		value.QuadPart = value_100nsec;
+		BOOL res = ::SetWaitableTimer(htimer.get(), &value, interval_msec, nullptr, nullptr, FALSE);
+		assert(res != 0);
+
+		HANDLE hw;
+		res = ::RegisterWaitForSingleObject(&hw, htimer.get(), on_timer_entry, this, INFINITE, WT_EXECUTEDEFAULT);
+		assert(res);
+		hwait.reset(hw);
+	}
+
+	HANDLE get_handle()
+	{
+		return htimer.get();
+	}
+
+private:
+	static void CALLBACK on_timer_entry(void* parameter, BOOLEAN)
+	{
+		auto pthis = static_cast<timer*>(parameter);
+		::PostQueuedCompletionStatus(pthis->hiocp, 0, 0, new overlapped_callback(mp::bind(&timer::on_timer, pthis)));
+	}
+
+	void on_timer()
+	{
+		if (!callback())
+		{
+			::CancelWaitableTimer(htimer.get());
+		}
+	}
+
+	unique_handle htimer;
+	unique_wait_handle hwait;
+	HANDLE hiocp;
+	mp::function<bool ()> callback;
+
+	timer(const timer&);
+	timer& operator =(const timer&);
+};
+
 
 class loop_impl {
 public:
 	unique_handle hiocp;
-	loop_impl(mp::function<void ()> thread_init_func = mp::function<void ()>());
+	explicit loop_impl(mp::function<void ()> thread_init_func = mp::function<void ()>());
 	~loop_impl();
 
 	typedef mp::shared_ptr<basic_handler> shared_handler;
@@ -78,6 +126,9 @@ public:
 
 	void submit_impl(task_t& f);
 
+	intptr_t add_timer(int64_t value_100nsec, long interval_msec,
+		mp::function<bool ()> callback);
+
 public:
 	enum dispatch_result_t {
 		dispatch_end,
@@ -91,11 +142,8 @@ public:
 
 private:
 	pthread_mutex m_mutex;
-//	pthread_cond m_cond;
 
 	mp::function<void ()> m_thread_init_func;
-
-//	pthread_cond m_flush_cond;
 
 private:
 	friend class loop;
@@ -105,6 +153,10 @@ private:
 
 	typedef std::vector<pthread_thread> workers_t;
 	workers_t m_workers;
+
+	typedef mp::sync<std::vector<mp::shared_ptr<timer> > > sync_timer_t;
+	typedef sync_timer_t::ref sync_timer_ref;
+	sync_timer_t m_timer;
 
 	static const ULONG_PTR COMPLATE_KEY_END = 1;
 
@@ -466,6 +518,12 @@ inline void loop_impl::run_once()
 	}
 }
 
+intptr_t loop_impl::add_timer(int64_t value_100nsec, long interval_msec, mp::function<bool ()> callback)
+{
+	sync_timer_ref ref(m_timer);
+	ref->push_back(std::make_shared<timer>(hiocp.get(), value_100nsec, interval_msec, callback));
+	return reinterpret_cast<intptr_t>(ref->back()->get_handle());
+}
 
 }  // noname namespace
 
@@ -507,64 +565,6 @@ void loop::join()
 void loop::submit_impl(task_t f)
 	{ ANON_impl->submit_impl(f); }
 
-// wavy_timer.h
-
-class timer {
-public:
-	timer(HANDLE hiocp, double value_sec, double interval_sec,
-			mp::function<bool ()> callback)
-			: htimer(::CreateWaitableTimer(nullptr, FALSE, nullptr)), hiocp(hiocp), callback(callback)
-	{
-		assert(htimer != NULL);
-
-		LARGE_INTEGER value;
-		value.QuadPart = static_cast<long long>(value_sec * -10000000);
-		BOOL res = ::SetWaitableTimer(htimer.get(), &value, static_cast<long>(interval_sec * 1000), nullptr, nullptr, FALSE);
-		assert(res != 0);
-
-		HANDLE hw;
-		res = ::RegisterWaitForSingleObject(&hw, htimer.get(), on_timer_entry, this, INFINITE, WT_EXECUTEDEFAULT);
-		assert(res);
-		hwait.reset(hw);
-	}
-
-private:
-	static void CALLBACK on_timer_entry(void* parameter, BOOLEAN)
-	{
-		auto pthis = static_cast<timer*>(parameter);
-		::PostQueuedCompletionStatus(pthis->hiocp, 0, 0, new overlapped_callback(mp::bind(&timer::on_timer, pthis)));
-	}
-
-	void on_timer()
-	{
-		if (!callback())
-		{
-			::CancelWaitableTimer(htimer.get());
-		}
-	}
-
-	unique_handle htimer;
-	unique_wait_handle hwait;
-	HANDLE hiocp;
-	mp::function<bool ()> callback;
-
-	timer(const timer&);
-	timer& operator =(const timer&);
-};
-
-// wavy_timer.cc
-
-//int loop::add_timer(const timespec* value, const timespec* interval,
-//		function<bool ()> callback)
-//{
-//	kernel& kern(ANON_impl->get_kernel());
-//
-//	shared_handler sh(new timer_handler(kern, value, interval, callback));
-//	ANON_impl->set_handler(sh);
-//
-//	return sh->ident();
-//}
-
 
 static inline struct timespec sec2spec(double sec)
 {
@@ -573,7 +573,7 @@ static inline struct timespec sec2spec(double sec)
 	return spec;
 }
 
-int loop::add_timer(double value_sec, double interval_sec,
+intptr_t loop::add_timer(double value_sec, double interval_sec,
 		mp::function<bool ()> callback)
 {
 	//if(value_sec >= 0.0) {
@@ -594,8 +594,7 @@ int loop::add_timer(double value_sec, double interval_sec,
 	//		return add_timer(NULL, (const timespec*)NULL, callback);
 	//	}
 	//}
-	timers.push_back(std::make_shared<timer>(ANON_impl->hiocp.get(), value_sec, interval_sec, callback));
-	return 0; // TODO: –ß‚è’l‚ð’¼‚·
+	return ANON_impl->add_timer(static_cast<int64_t>(value_sec * -10000000), interval_sec * 1000, callback);
 }
 
 
