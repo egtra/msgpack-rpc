@@ -13,7 +13,7 @@ namespace impl {
 namespace windows {
 
 
-struct overlapped_callback : ::OVERLAPPED/*, mp::enable_shared_from_this<overlapped_callback>*/
+struct overlapped_callback : ::OVERLAPPED
 {
 	typedef mp::function<void (::OVERLAPPED const& ov, DWORD transfered, DWORD error)> callback_t;
 
@@ -123,7 +123,7 @@ public:
 	intptr_t add_timer(double value_sec, double interval_sec,
 			mp::function<bool ()> callback);
 
-	//void remove_timer(int ident);
+	void remove_timer(intptr_t ident);
 
 	void read(SOCKET fd, void* buf, size_t size, read_callback_t callback);
 

@@ -69,7 +69,7 @@ public:
 		hwait.reset(hw);
 	}
 
-	HANDLE get_handle()
+	HANDLE get_handle() const
 	{
 		return htimer.get();
 	}
@@ -129,6 +129,8 @@ public:
 	intptr_t add_timer(int64_t value_100nsec, long interval_msec,
 		mp::function<bool ()> callback);
 
+	void remove_timer(intptr_t timer);
+
 public:
 	enum dispatch_result_t {
 		dispatch_end,
@@ -154,7 +156,8 @@ private:
 	typedef std::vector<pthread_thread> workers_t;
 	workers_t m_workers;
 
-	typedef mp::sync<std::vector<mp::shared_ptr<timer> > > sync_timer_t;
+	typedef std::vector<mp::shared_ptr<timer> > vec_timer_t;
+	typedef mp::sync<vec_timer_t> sync_timer_t;
 	typedef sync_timer_t::ref sync_timer_ref;
 	sync_timer_t m_timer;
 
@@ -525,6 +528,23 @@ intptr_t loop_impl::add_timer(int64_t value_100nsec, long interval_msec, mp::fun
 	return reinterpret_cast<intptr_t>(ref->back()->get_handle());
 }
 
+struct timer_finder : std::binary_function<const mp::shared_ptr<timer>&, intptr_t, bool> {
+	result_type operator()(first_argument_type timer, second_argument_type htimer) const
+	{
+		return timer->get_handle() == reinterpret_cast<HANDLE>(htimer);
+	}
+};
+
+void loop_impl::remove_timer(intptr_t timer)
+{
+	sync_timer_ref ref(m_timer);
+	vec_timer_t::const_iterator it = std::find_if(ref->begin(), ref->end(), mp::bind(timer_finder(), _1, timer));
+	if(it == ref->end()) {
+		throw std::invalid_argument("remove_timer");
+	}
+	ref->erase(it);
+}
+
 }  // noname namespace
 
 
@@ -594,7 +614,7 @@ intptr_t loop::add_timer(double value_sec, double interval_sec,
 	//		return add_timer(NULL, (const timespec*)NULL, callback);
 	//	}
 	//}
-	return ANON_impl->add_timer(static_cast<int64_t>(value_sec * -10000000), interval_sec * 1000, callback);
+	return ANON_impl->add_timer(static_cast<int64_t>(value_sec * -10000000), static_cast<long>(interval_sec * 1000), callback);
 }
 
 
