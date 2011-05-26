@@ -117,13 +117,13 @@ public:
 	{
 		BOOL ret = InitializeCriticalSectionAndSpinCount(&m_mutex, 4000);
 	}
-
+#ifndef BOOST_NO_RVALUE_REFERENCES
 	pthread_mutex(pthread_mutex&& y)
 	{
 		m_mutex = y.m_mutex;
 		y.m_mutex = CRITICAL_SECTION();
 	}
-
+#endif
 	//pthread_mutex(int kind)
 	//{
 	//	pthread_mutexattr_t attr;

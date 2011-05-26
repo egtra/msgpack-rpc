@@ -42,12 +42,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="stdafx.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="targetver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\cclog\cclog.h">
       <Filter>Header Files\cclog</Filter>
     </ClInclude>
@@ -189,11 +183,14 @@
     <ClInclude Include="..\..\src\cclog\cclog_console.h">
       <Filter>Header Files\cclog</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\targetver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="stdafx.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\msgpack\rpc\address.cc">
       <Filter>Source Files\msgpack-rpc</Filter>
     </ClCompile>
@@ -256,6 +253,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\cclog\cclog_console.cc">
       <Filter>Source Files\cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\stdafx.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -54,13 +54,13 @@ class timer {
 public:
 	timer(HANDLE hiocp, int64_t value_100nsec, int interval_msec,
 			mp::function<bool ()> callback)
-			: htimer(::CreateWaitableTimer(nullptr, FALSE, nullptr)), hiocp(hiocp), callback(callback)
+			: htimer(::CreateWaitableTimer(NULL, FALSE, NULL)), hiocp(hiocp), callback(callback)
 	{
-		assert(htimer != NULL);
+		assert(htimer.get() != NULL);
 
 		LARGE_INTEGER value;
 		value.QuadPart = value_100nsec;
-		BOOL res = ::SetWaitableTimer(htimer.get(), &value, interval_msec, nullptr, nullptr, FALSE);
+		BOOL res = ::SetWaitableTimer(htimer.get(), &value, interval_msec, NULL, NULL, FALSE);
 		assert(res != 0);
 
 		HANDLE hw;
@@ -77,7 +77,7 @@ public:
 private:
 	static void CALLBACK on_timer_entry(void* parameter, BOOLEAN)
 	{
-		auto pthis = static_cast<timer*>(parameter);
+		timer* pthis = static_cast<timer*>(parameter);
 		::PostQueuedCompletionStatus(pthis->hiocp, 0, 0, new overlapped_callback(mp::bind(&timer::on_timer, pthis)));
 	}
 
@@ -524,7 +524,7 @@ inline void loop_impl::run_once()
 intptr_t loop_impl::add_timer(int64_t value_100nsec, long interval_msec, mp::function<bool ()> callback)
 {
 	sync_timer_ref ref(m_timer);
-	ref->push_back(std::make_shared<timer>(hiocp.get(), value_100nsec, interval_msec, callback));
+	ref->push_back(mp::make_shared<timer>(hiocp.get(), value_100nsec, interval_msec, callback));
 	return reinterpret_cast<intptr_t>(ref->back()->get_handle());
 }
 
@@ -538,7 +538,7 @@ struct timer_finder : std::binary_function<const mp::shared_ptr<timer>&, intptr_
 void loop_impl::remove_timer(intptr_t timer)
 {
 	sync_timer_ref ref(m_timer);
-	vec_timer_t::const_iterator it = std::find_if(ref->begin(), ref->end(), mp::bind(timer_finder(), _1, timer));
+	vec_timer_t::iterator it = std::find_if(ref->begin(), ref->end(), mp::bind(timer_finder(), _1, timer));
 	if(it == ref->end()) {
 		throw std::invalid_argument("remove_timer");
 	}
@@ -657,7 +657,7 @@ namespace {
 
 struct connect_info {
 	loop::connect_callback_t callback;
-	SOCKET sock;
+	unique_socket sock;
 	HANDLE hwait;
 	unique_handle hevent;
 };
@@ -668,8 +668,8 @@ void CALLBACK on_connect(void* parameter, BOOLEAN timeout)
 	std::auto_ptr<connect_info> const info(static_cast<connect_info*>(parameter));
 	if(info.get()) {
 		if(timeout) {
-			::closesocket(info->sock);
-			info->callback(INVALID_SOCKET, WSAETIMEDOUT);
+			info->sock.reset();
+			info->callback(unique_socket(), WSAETIMEDOUT);
 		} else {
 			info->callback(info->sock, 0);
 		}
@@ -682,6 +682,20 @@ void CALLBACK on_connect(void* parameter, BOOLEAN timeout)
 	}
 }
 
+struct connect_binder
+{
+	loop::connect_callback_t m_callback;
+	unique_socket m_s;
+
+	connect_binder(loop::connect_callback_t callback, unique_socket& s) : m_callback(callback) {
+		m_s.swap(s);
+	}
+
+	void operator ()(::OVERLAPPED const&, DWORD, DWORD error) {
+		m_callback(m_s, error);
+	}
+};
+
 }  // noname namespace
 
 void loop::connect(
@@ -690,33 +704,34 @@ void loop::connect(
 	double timeout_sec, connect_callback_t callback)
 {
 	int err = 0;
-	SOCKET fd = ::WSASocket(socket_family, socket_type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
-	if (fd == INVALID_SOCKET) {
+	unique_socket fd(::WSASocket(socket_family, socket_type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED));
+	if (fd.get() == INVALID_SOCKET) {
+		fd.release();
 		err = WSAGetLastError();
-		goto out_;
+		goto error;
 	}
 
-	if (::CreateIoCompletionPort(reinterpret_cast<HANDLE>(fd), ANON_impl->hiocp.get(), 0, 0) == NULL) {
+	if (::CreateIoCompletionPort(reinterpret_cast<HANDLE>(fd.get()), ANON_impl->hiocp.get(), 0, 0) == NULL) {
 		err = GetLastError();
 		goto error;
 	}
 
-#if 0
+#if 1
 	{
 		std::auto_ptr<connect_info> info(new connect_info);
 		info->hevent.reset(::CreateEvent(NULL, TRUE, FALSE, NULL));
-		if (WSAEventSelect(fd, info->hevent.get(), FD_CONNECT) != 0) {
+		if (WSAEventSelect(fd.get(), info->hevent.get(), FD_CONNECT) != 0) {
 			err = GetLastError();
 			goto error;
 		}
-		if (WSAConnect(fd, addr, addrlen, NULL, NULL, NULL, NULL) != 0) {
+		if (WSAConnect(fd.get(), addr, addrlen, NULL, NULL, NULL, NULL) != 0) {
 			err = GetLastError();
 			if (err != WSAEWOULDBLOCK) {
 				goto error;
 			}
 		}
 		info->callback = callback;
-		info->sock = fd;
+		info->sock.swap(fd);
 		if(RegisterWaitForSingleObject(&info->hwait, info->hevent.get(), on_connect, info.get(), static_cast<DWORD>(timeout_sec * 1000), WT_EXECUTEONLYONCE))
 		{
 			info.release();
@@ -729,7 +744,7 @@ void loop::connect(
 	sin.sin_family = AF_INET;
 	sin.sin_port = 0;
 	sin.sin_addr.s_addr = INADDR_ANY;
-	if (::bind(fd, reinterpret_cast<sockaddr const*>(&sin), sizeof sin) != 0) {
+	if (::bind(fd.get(), reinterpret_cast<sockaddr const*>(&sin), sizeof sin) != 0) {
 		err = GetLastError();
 		goto error;
 	}
@@ -737,22 +752,22 @@ void loop::connect(
 	LPFN_CONNECTEX lpfnConnectEx = NULL;
 	{
 		GUID guid = WSAID_CONNECTEX;
-		if (GetExtensionFunctionPointer(fd, guid, lpfnConnectEx) != 0)
+		if (GetExtensionFunctionPointer(fd.get(), guid, lpfnConnectEx) != 0)
 		{
 			err = WSAGetLastError();
-			goto out_;
+			goto error;
 		}
 
 		{
+			SOCKET s = fd.get();
 			std::auto_ptr<overlapped_callback> overlapped(
-				new(std::nothrow) overlapped_callback(
-					mp::bind(callback, fd, _3)));
+				new(std::nothrow) overlapped_callback(connect_binder(callback, fd)));
 			if (overlapped.get() == 0)
 			{
 				err = ERROR_OUTOFMEMORY;
-				goto out_;
+				goto error;
 			}
-			BOOL ret = lpfnConnectEx(fd, addr, addrlen, NULL, 0, NULL, overlapped.get());
+			BOOL ret = lpfnConnectEx(s, addr, addrlen, NULL, 0, NULL, overlapped.get());
 			err = WSAGetLastError();
 			if (ret || err == ERROR_IO_PENDING)
 			{
@@ -763,11 +778,7 @@ void loop::connect(
 	}
 #endif
 error:
-	::closesocket(fd);
-	fd = INVALID_SOCKET;
-
-out_:
-	callback(fd, err);
+	callback(unique_socket(), err);
 }
 
 // wavy_listen.cc
@@ -777,25 +788,28 @@ namespace {
 void on_accept(SOCKET s, loop::listen_callback_t callback, HANDLE hiocp, loop* pthis)
 {
 	while(true) {
-		unique_socket ps = pthis->accept(s, NULL, NULL);
-		if(!ps) {
+		unique_socket as(pthis->accept(s, NULL, NULL));
+		if(as.get() == INVALID_SOCKET) {
+			as.release();
 			return;
 		}
-		callback(ps, 0);
+		callback(as, 0);
 	}
 }
 
 struct listen_socket {
-	unique_handle m_hevent;
-	unique_wait_handle m_hwait;
+	HANDLE m_hevent;
+	HANDLE m_hwait;
 	SOCKET m_lsock;
 
-	listen_socket(unique_handle&& hevent, unique_wait_handle&& hwait, SOCKET s) :
-		m_hevent(std::move(hevent)), m_hwait(std::move(hwait)), m_lsock(s) {
+	listen_socket(HANDLE hevent, HANDLE hwait, SOCKET s) :
+		m_hevent(hevent), m_hwait(hwait), m_lsock(s) {
 	}
 
 	~listen_socket()
 	{
+		::CloseHandle(m_hevent);
+		::UnregisterWait(m_hwait);
 		::closesocket(m_lsock);
 	}
 };
@@ -836,8 +850,8 @@ mp::shared_ptr<SOCKET> loop::listen_accept(
 			::closesocket(lsock);
 			throw mp::system_error(WSAGetLastError(), "bind failed");
 		}
-		mp::shared_ptr<listen_socket> ls(std::make_shared<listen_socket>(std::move(hevent), std::move(hwait), lsock));
-		return mp::shared_ptr<SOCKET>(std::move(ls), &ls->m_lsock);
+		mp::shared_ptr<listen_socket> ls(mp::make_shared<listen_socket>(hevent.release(), hwait.release(), lsock));
+		return mp::shared_ptr<SOCKET>(ls, &ls->m_lsock);
 
 	} catch (...) {
 		::closesocket(lsock);
@@ -855,7 +869,7 @@ mp::shared_ptr<SOCKET> loop::listen(
 		throw mp::system_error(errno, "socket() failed");
 	}
 
-	mp::shared_ptr<SOCKET> ret = std::make_shared<SOCKET>(lsock);
+	mp::shared_ptr<SOCKET> ret = mp::make_shared<SOCKET>(lsock);
 
 	BOOL on = TRUE;
 	if(::setsockopt(lsock, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&on), sizeof(on)) != 0) {
@@ -874,12 +888,12 @@ mp::shared_ptr<SOCKET> loop::listen(
 		throw mp::system_error(GetLastError(), "CreateIoCompletionPort failed");
 	}
 
-	return std::make_shared<SOCKET>(lsock);
+	return mp::make_shared<SOCKET>(lsock);
 }
 
 namespace {
 
-unique_socket accept_impl(SOCKET fd, sockaddr* addr, int addr_len)
+SOCKET accept_impl(SOCKET fd, sockaddr* addr, int addr_len)
 {
 	SOCKET ret = ::accept(fd, NULL, NULL);
 	if(ret == INVALID_SOCKET) {
@@ -887,22 +901,20 @@ unique_socket accept_impl(SOCKET fd, sockaddr* addr, int addr_len)
 		if(err != WSAEWOULDBLOCK) {
 			throw mp::system_error(err, "accept failed");
 		}
-		return unique_socket();
 	}
-	return unique_socket(ret);
+	return ret;
 }
 
 }  // noname namespace
 
-unique_socket loop::accept(SOCKET fd, sockaddr* addr, int addr_len)
+SOCKET loop::accept(SOCKET fd, sockaddr* addr, int addr_len)
 {
-	unique_socket sock = accept_impl(fd, addr, addr_len);
-	if(sock) {
-		if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(sock.get()), ANON_impl->hiocp.get(), 0, 0) == NULL) {
+	SOCKET sock = accept_impl(fd, addr, addr_len);
+	if(sock != INVALID_SOCKET) {
+		if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(sock), ANON_impl->hiocp.get(), 0, 0) == NULL) {
 			int err = static_cast<int>(GetLastError());
 			throw mp::system_error(err, "CreateIoCompletionPort failed");
 		}
-
 	}
 	return sock;
 }

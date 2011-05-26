@@ -53,9 +53,9 @@ struct socket_deleter : std::unary_function<SOCKET, void>
 	}
 };
 
-typedef std::unique_ptr<HANDLE, handle_deleter<::CloseHandle>> unique_handle;
-typedef std::unique_ptr<SOCKET, socket_deleter> unique_socket;
-typedef std::unique_ptr<HANDLE, handle_deleter<::UnregisterWait>> unique_wait_handle;
+typedef mp::unique_ptr<SOCKET, socket_deleter> unique_socket;
+typedef mp::unique_ptr<HANDLE, handle_deleter<::CloseHandle>> unique_handle;
+typedef mp::unique_ptr<HANDLE, handle_deleter<::UnregisterWait>> unique_wait_handle;
 
 
 class loop {
@@ -85,7 +85,7 @@ public:
 	void remove_handler(SOCKET fd);
 
 
-	typedef mp::function<void (int fd, int err)> connect_callback_t;
+	typedef mp::function<void (unique_socket& fd, int err)> connect_callback_t;
 
 	//void connect(
 	//		int socket_family, int socket_type, int protocol,
@@ -111,7 +111,7 @@ public:
 			const sockaddr* addr, socklen_t addrlen,
 			int backlog = 1024);
 
-	unique_socket accept(SOCKET fd, sockaddr* addr, int addr_len);
+	SOCKET accept(SOCKET fd, sockaddr* addr, int addr_len);
 
 	typedef mp::function<void (DWORD error, DWORD transferred)> read_callback_t;
 

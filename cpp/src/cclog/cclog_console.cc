@@ -52,7 +52,7 @@ void cclog_console::log_impl(level lv, std::string& str)
 
 	DWORD written;
 	SetConsoleTextAttribute(m_hconsole, color_table[lv]);
-	WriteConsoleA(m_hconsole, output.c_str(), output.size(), &written, NULL);
+	WriteConsoleA(m_hconsole, output.c_str(), static_cast<DWORD>(output.size()), &written, NULL);
 	SetConsoleTextAttribute(m_hconsole, m_normal_color);
 }
 

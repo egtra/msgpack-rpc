@@ -34,6 +34,8 @@ namespace {
 
 using namespace mp::placeholders;
 
+using msgpack::rpc::impl::windows::unique_socket;
+
 class client_transport;
 class server_transport;
 
@@ -86,8 +88,8 @@ private:
 
 private:
 	void try_connect(sync_ref& lk_ref);
-	static void on_connect(SOCKET fd, int err, weak_session ws, client_transport* self);
-	void on_connect_success(SOCKET fd, sync_ref& ref);
+	static void on_connect(unique_socket& fd, int err, weak_session ws, client_transport* self);
+	void on_connect_success(unique_socket& fd, sync_ref& ref);
 	void on_connect_failed(int err, sync_ref& ref);
 
 	friend class client_socket;
@@ -140,16 +142,23 @@ client_transport::~client_transport()
 	}
 }
 
-inline void client_transport::on_connect_success(SOCKET fd, sync_ref& ref)
+mp::shared_ptr<client_socket> make_client_socket(unique_socket& s, client_transport* t, session_impl* session)
 {
-	LOG_DEBUG("connect success to ",m_session->get_address()," fd=",fd);
+	mp::shared_ptr<client_socket> cs(mp::make_shared<client_socket>(s.get(), t, session));
+	s.release();
+	return cs;
+}
 
-	mp::shared_ptr<client_socket> cs(std::make_shared<client_socket>(fd, this, m_session));
+inline void client_transport::on_connect_success(unique_socket& fd, sync_ref& ref)
+{
+	LOG_DEBUG("connect success to ",m_session->get_address()," fd=",fd.get());
+
+	mp::shared_ptr<client_socket> cs(make_client_socket(fd, this, m_session));
 	cs->async_read();
 
 	ref->sockpool.push_back(cs);
 
-	m_session->get_loop()->commit(fd, &ref->pending_xf);
+	m_session->get_loop()->commit(cs->fd(), &ref->pending_xf);
 	ref->pending_xf.clear();
 
 	ref->connecting = 0;
@@ -172,26 +181,22 @@ void client_transport::on_connect_failed(int err, sync_ref& ref)
 	m_session->on_connect_failed();
 }
 
-void client_transport::on_connect(SOCKET fd, int err, weak_session ws, client_transport* self)
+void client_transport::on_connect(unique_socket& fd, int err, weak_session ws, client_transport* self)
 {
 	shared_session s = ws.lock();
 	if(!s) {
-		if(fd != INVALID_SOCKET) {
-			::closesocket(fd);
-		}
 		return;
 	}
 
 	sync_ref ref(self->m_sync);
 
-	if(fd != INVALID_SOCKET) {
-		if(setsockopt(fd, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) == 0) {
+	if(fd) {
+		if(setsockopt(fd.get(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) == 0) {
 			// success
 			try {
 				self->on_connect_success(fd, ref);
 				return;
 			} catch (...) {
-				::closesocket(fd);
 				err = E_UNEXPECTED;
 				LOG_WARN("attach failed or send pending failed");
 			}
@@ -373,7 +378,7 @@ void server_socket::on_accept_ex(mp::weak_ptr<stream_handler<server_socket> > wh
 
 
 server_transport::server_transport(server_impl* svr, const address& addr) :
-	m_lsock(), m_svr(mp::static_pointer_cast<server_impl>(svr->shared_from_this())), m_loop(svr->get_loop()), m_sock(std::make_shared<sync_socket>())
+	m_lsock(), m_svr(mp::static_pointer_cast<server_impl>(svr->shared_from_this())), m_loop(svr->get_loop()), m_sock(mp::make_shared<sync_socket>())
 {
 	sockaddr_storage addrbuf;
 	addr.get_addr((sockaddr*)&addrbuf);
@@ -402,7 +407,7 @@ void server_transport::next_accept_ex(mp::weak_ptr<SOCKET> wlsock, mp::weak_ptr<
 	mp::shared_ptr<server_impl> svr = wsvr.lock();
 	mp::shared_ptr<sync_socket> sock = wsock.lock();
 	if(lsock && svr && sock) {
-		mp::shared_ptr<server_socket> accept_sock = std::make_shared<server_socket>(svr);
+		mp::shared_ptr<server_socket> accept_sock = mp::make_shared<server_socket>(svr);
 		accept_sock->accept_ex(*lsock, mp::bind(&server_transport::next_accept_ex, wlsock, wsvr, wsock));
 		sock->lock()->push_back(accept_sock);
 	}
@@ -438,7 +443,7 @@ void server_transport::on_accept(impl::windows::unique_socket& fd, int err, weak
 	//}
 	LOG_TRACE("accepted fd=",fd.get());
 
-	mp::shared_ptr<server_socket> accepted_sock = std::make_shared<server_socket>(fd.release(), svr);
+	mp::shared_ptr<server_socket> accepted_sock = mp::make_shared<server_socket>(fd.release(), svr);
 	accepted_sock->async_read();
 	sock->lock()->push_back(accepted_sock);
 }

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="shift_jis"?>
+<VisualStudioPropertySheet
+	ProjectType="Visual C++"
+	Version="8.00"
+	Name="msgpack-rpc"
+	OutputDirectory="$(SolutionDir)\$(ConfigurationName)-$(PlatformName)"
+	IntermediateDirectory="$(TEMP)\$(SolutionName)\$(ConfigurationName)-$(PlatformName)\$(ProjectName)\"
+	>
+	<Tool
+		Name="VCCLCompilerTool"
+		AdditionalIncludeDirectories="$(ProjectDir)..\src;$(ProjectDir)..\..\src"
+		PreprocessorDefinitions="WIN32;MP_FUNCTIONAL_BOOST_ORG;MP_MEMORY_BOOST_ORG;MP_UNORDERED_MAP_BOOST_ORG;MP_NO_CXX_ABI_H"
+		UsePrecompiledHeader="2"
+		WarningLevel="3"
+		Detect64BitPortabilityProblems="true"
+		DebugInformationFormat="1"
+		CompileAs="2"
+		ForcedIncludeFiles="stdafx.h"
+		OmitDefaultLibName="true"
+	/>
+</VisualStudioPropertySheet>
