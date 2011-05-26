@@ -99,7 +99,7 @@
     <ClCompile Include="zone.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\msgpack-rpc_vc10\msgpack-rpc_vc10.vcxproj">
+    <ProjectReference Include="..\msvc10\msgpack-rpc_vc10.vcxproj">
       <Project>{d352b103-4243-4e94-96a1-49d62fcc4bf0}</Project>
     </ProjectReference>
   </ItemGroup>

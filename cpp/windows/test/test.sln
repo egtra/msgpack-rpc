@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 11.00
 # Visual Studio 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test.vcxproj", "{94598CFF-A95A-413C-A3F9-AD7112EFD389}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "msgpack-rpc_vc10", "..\msgpack-rpc_vc10\msgpack-rpc_vc10.vcxproj", "{D352B103-4243-4E94-96A1-49D62FCC4BF0}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "msgpack-rpc_vc10", "..\msvc10\msgpack-rpc_vc10.vcxproj", "{D352B103-4243-4E94-96A1-49D62FCC4BF0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
