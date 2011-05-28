@@ -42,7 +42,7 @@ class server_transport;
 
 class client_socket : public stream_handler<client_socket> {
 public:
-	client_socket(SOCKET sock, client_transport* tran, session_impl* s);
+	client_socket(unique_socket socket, client_transport* tran, session_impl* s);
 	~client_socket();
 
 	void on_response(msgid_t msgid,
@@ -101,8 +101,8 @@ private:
 };
 
 
-client_socket::client_socket(SOCKET sock, client_transport* tran, session_impl* s) :
-	stream_handler<client_socket>(sock, s->get_loop()),
+client_socket::client_socket(unique_socket socket, client_transport* tran, session_impl* s) :
+	stream_handler<client_socket>(mp::move(socket), s->get_loop()),
 	m_tran(tran), m_session(s->shared_from_this()) { }
 
 client_socket::~client_socket()
@@ -142,18 +142,11 @@ client_transport::~client_transport()
 	}
 }
 
-mp::shared_ptr<client_socket> make_client_socket(unique_socket& s, client_transport* t, session_impl* session)
-{
-	mp::shared_ptr<client_socket> cs(mp::make_shared<client_socket>(s.get(), t, session));
-	s.release();
-	return cs;
-}
-
 inline void client_transport::on_connect_success(unique_socket& fd, sync_ref& ref)
 {
 	LOG_DEBUG("connect success to ",m_session->get_address()," fd=",fd.get());
 
-	mp::shared_ptr<client_socket> cs(make_client_socket(fd, this, m_session));
+	mp::shared_ptr<client_socket> cs = mp::make_shared<client_socket>(mp::move(fd), this, m_session);
 	cs->async_read();
 
 	ref->sockpool.push_back(cs);
@@ -191,17 +184,13 @@ void client_transport::on_connect(unique_socket& fd, int err, weak_session ws, c
 	sync_ref ref(self->m_sync);
 
 	if(fd) {
-		if(setsockopt(fd.get(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) == 0) {
-			// success
-			try {
-				self->on_connect_success(fd, ref);
-				return;
-			} catch (...) {
-				err = E_UNEXPECTED;
-				LOG_WARN("attach failed or send pending failed");
-			}
-		} else {
-			err = WSAGetLastError();
+		// success
+		try {
+			self->on_connect_success(fd, ref);
+			return;
+		} catch (...) {
+			err = E_UNEXPECTED;
+			LOG_WARN("attach failed or send pending failed");
 		}
 	}
 
@@ -277,7 +266,7 @@ void client_transport::send_data(auto_vreflife vbuf)
 
 class server_socket : public stream_handler<server_socket> {
 public:
-	server_socket(SOCKET sock, shared_server svr);
+	server_socket(unique_socket sock, shared_server svr);
 	server_socket(shared_server svr);
 	~server_socket();
 
@@ -326,12 +315,12 @@ private:
 };
 
 
-server_socket::server_socket(SOCKET sock, shared_server svr) :
-	stream_handler<server_socket>(sock, svr->get_loop()),
+server_socket::server_socket(unique_socket socket, shared_server svr) :
+	stream_handler<server_socket>(mp::move(socket), svr->get_loop()),
 	m_svr(svr) { }
 
 server_socket::server_socket(shared_server svr) :
-	stream_handler<server_socket>(::socket(AF_INET, SOCK_STREAM, 0), svr->get_loop()),
+	stream_handler<server_socket>(unique_socket(::socket(AF_INET, SOCK_STREAM, 0)), svr->get_loop()),
 	m_svr(svr) { }
 
 server_socket::~server_socket() { }
@@ -363,7 +352,7 @@ void server_socket::accept_ex(SOCKET lsock, mp::function<void ()> accept_callbac
 
 	mp::weak_ptr<stream_handler> whandler(mp::static_pointer_cast<stream_handler>(shared_from_this()));
 	m_pac.reserve_buffer(MSGPACK_RPC_STREAM_RESERVE_SIZE);
-	m_loop->accept_ex(lsock, ident(), m_pac.buffer(), m_pac.buffer_capacity(), mp::bind(on_accept_ex, whandler, _1, _2, lsock, accept_callback));
+	m_loop->accept_ex(lsock, fd(), m_pac.buffer(), m_pac.buffer_capacity(), mp::bind(on_accept_ex, whandler, _1, _2, lsock, accept_callback));
 }
 
 void server_socket::on_accept_ex(mp::weak_ptr<stream_handler<server_socket> > whandler, DWORD error, DWORD transferred, SOCKET lsock, mp::function<void ()> callback)
@@ -372,7 +361,7 @@ void server_socket::on_accept_ex(mp::weak_ptr<stream_handler<server_socket> > wh
 	if(handler) {
 		setsockopt(handler->fd(), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&lsock), sizeof (lsock));
 	}
-	on_read2(whandler, error, transferred);
+	on_read(whandler, error, transferred);
 	callback();
 }
 
@@ -443,7 +432,7 @@ void server_transport::on_accept(impl::windows::unique_socket& fd, int err, weak
 	//}
 	LOG_TRACE("accepted fd=",fd.get());
 
-	mp::shared_ptr<server_socket> accepted_sock = mp::make_shared<server_socket>(fd.release(), svr);
+	mp::shared_ptr<server_socket> accepted_sock = mp::make_shared<server_socket>(mp::move(fd), svr);
 	accepted_sock->async_read();
 	sock->lock()->push_back(accepted_sock);
 }

@@ -267,47 +267,6 @@ private:
 };
 
 
-class basic_handler {
-public:
-	basic_handler(SOCKET ident) :
-		m_ident(ident) { }
-
-	virtual ~basic_handler() { }
-
-	SOCKET ident() const { return m_ident; }
-
-	SOCKET fd() const { return ident(); }
-
-private:
-	SOCKET m_ident;
-
-private:
-	basic_handler();
-	basic_handler(const basic_handler&);
-};
-
-
-class handler : public mp::enable_shared_from_this<handler>, public basic_handler {
-public:
-	handler(SOCKET fd) : basic_handler(fd) { }
-
-	~handler() { ::closesocket(fd()); }
-
-public:
-	template <typename IMPL>
-	mp::shared_ptr<IMPL> shared_self()
-	{
-		return mp::static_pointer_cast<IMPL>(enable_shared_from_this<handler>::shared_from_this());
-	}
-
-	template <typename IMPL>
-	mp::shared_ptr<IMPL const> shared_self() const
-	{
-		return mp::static_pointer_cast<IMPL>(enable_shared_from_this<handler>::shared_from_this());
-	}
-};
-
-
 template <typename F>
 inline void loop::submit(F f)
 	{ submit_impl(task_t(f)); }

@@ -45,6 +45,7 @@ namespace mp {
 	using boost::enable_shared_from_this;
 	using boost::make_shared;
 	using boost::interprocess::unique_ptr;
+	using boost::interprocess::move;
 }
 #else
 #ifndef MP_MEMORY_STANDARD
@@ -68,6 +69,7 @@ namespace mp {
 	using std::dynamic_pointer_cast;
 	using std::enable_shared_from_this;
 	using std::make_shared;
+	using std::move;
 }
 #endif
 #endif

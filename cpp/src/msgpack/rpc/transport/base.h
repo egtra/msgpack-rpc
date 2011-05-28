@@ -46,12 +46,9 @@ class closed_exception { };
 
 
 template <typename MixIn>
-class stream_handler : public mp::wavy::handler, public message_sendable {
+class stream_handler : public mp::enable_shared_from_this<stream_handler<MixIn> >, public message_sendable {
 public:
-	stream_handler(SOCKET fd, loop lo);
-	~stream_handler();
-
-	void remove_handler();
+	stream_handler(msgpack::rpc::impl::windows::unique_socket s, loop lo);
 
 	mp::shared_ptr<message_sendable> get_response_sender();
 
@@ -81,13 +78,15 @@ public:
 		throw msgpack::type_error();  // FIXME
 	}
 
+	SOCKET fd() const { return m_socket.get(); }
+
 protected:
+	msgpack::rpc::impl::windows::unique_socket m_socket;
 	unpacker m_pac;
 	loop m_loop;
 
-private:
 protected:
-	static void on_read2(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred);
+	static void on_read(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred);
 };
 
 //template <typename MixIn>
@@ -142,13 +141,10 @@ protected:
 
 
 template <typename MixIn>
-inline stream_handler<MixIn>::stream_handler(SOCKET fd, loop lo) :
-	mp::wavy::handler(fd),
+inline stream_handler<MixIn>::stream_handler(msgpack::rpc::impl::windows::unique_socket s, loop lo) :
+	m_socket(mp::move(s)),
 	m_pac(MSGPACK_RPC_STREAM_BUFFER_SIZE),
 	m_loop(lo) { }
-
-template <typename MixIn>
-inline stream_handler<MixIn>::~stream_handler() { }
 
 
 //template <typename MixIn>
@@ -306,12 +302,12 @@ void stream_handler<MixIn>::async_read() {
 
 	mp::weak_ptr<stream_handler> whandler(mp::static_pointer_cast<stream_handler<MixIn> >(shared_from_this()));
 	m_pac.reserve_buffer(MSGPACK_RPC_STREAM_RESERVE_SIZE);
-	m_loop->read(ident(), m_pac.buffer(), m_pac.buffer_capacity(),
-		mp::bind(on_read2, whandler, _1, _2));
+	m_loop->read(fd(), m_pac.buffer(), m_pac.buffer_capacity(),
+		mp::bind(on_read, whandler, _1, _2));
 }
 
 template <typename MixIn>
-void stream_handler<MixIn>::on_read2(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred)
+void stream_handler<MixIn>::on_read(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred)
 try {
 	if(error != 0) {
 		throw mp::system_error(error, "async_read");
@@ -345,17 +341,17 @@ try {
 	return;
 }
 
-class scoped_buffer {
-public:
-	scoped_buffer(size_t size) : data((char*)malloc(size))
-		{ if(data == NULL) { throw std::bad_alloc(); } }
-	~scoped_buffer() { ::free(data); }
-	char* data;
-	void release() { data = NULL; }
-private:
-	scoped_buffer();
-	scoped_buffer(const scoped_buffer&);
-};
+//class scoped_buffer {
+//public:
+//	scoped_buffer(size_t size) : data((char*)malloc(size))
+//		{ if(data == NULL) { throw std::bad_alloc(); } }
+//	~scoped_buffer() { ::free(data); }
+//	char* data;
+//	void release() { data = NULL; }
+//private:
+//	scoped_buffer();
+//	scoped_buffer(const scoped_buffer&);
+//};
 
 //template <typename MixIn>
 //void dgram_handler<MixIn>::on_read(mp::wavy::event& e)
@@ -404,7 +400,7 @@ private:
 template <typename MixIn>
 mp::shared_ptr<message_sendable> inline stream_handler<MixIn>::get_response_sender()
 {
-	return shared_self<stream_handler<MixIn> >();
+	return shared_from_this();
 }
 
 

@@ -105,7 +105,6 @@ public:
 	explicit loop_impl(mp::function<void ()> thread_init_func = mp::function<void ()>());
 	~loop_impl();
 
-	typedef mp::shared_ptr<basic_handler> shared_handler;
 	typedef mp::function<void ()> task_t;
 
 public:
@@ -673,12 +672,7 @@ void CALLBACK on_connect(void* parameter, BOOLEAN timeout)
 		} else {
 			info->callback(info->sock, 0);
 		}
-
-		volatile HANDLE* p = &info->hwait;
-		while(*p == NULL) {
-			YieldProcessor();
-		}
-		UnregisterWait(*p);
+		UnregisterWait(info->hwait);
 	}
 }
 
@@ -692,7 +686,17 @@ struct connect_binder
 	}
 
 	void operator ()(::OVERLAPPED const&, DWORD, DWORD error) {
-		m_callback(m_s, error);
+		if(!error) {
+			if(setsockopt(m_s.get(), SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT, NULL, 0) == 0) {
+				m_callback(m_s, 0);
+			} else {
+				DWORD error_setsockopt = ::WSAGetLastError();
+				m_callback(unique_socket(), error_setsockopt);
+			}
+		} else {
+			m_callback(unique_socket(), error);
+		}
+
 	}
 };
 
