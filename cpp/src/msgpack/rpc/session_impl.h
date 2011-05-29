@@ -54,6 +54,16 @@ public:
 		return m_loop;
 	}
 
+	loop& get_loop_ref()
+	{
+		return m_loop;
+	}
+
+	const loop& get_loop_ref() const
+	{
+		return m_loop;
+	}
+
 	void set_timeout(unsigned int sec)
 	{
 		m_timeout = sec;

@@ -43,6 +43,12 @@ public:
 	loop get_loop()
 		{ return m_loop; }
 
+	loop& get_loop_ref()
+		{ return m_loop; }
+
+	const loop& get_loop_ref() const
+		{ return m_loop; }
+
 public:
 	void step_timeout();
 

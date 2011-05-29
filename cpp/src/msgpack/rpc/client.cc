@@ -59,12 +59,12 @@ client::client(const std::string& host, uint16_t port, loop lo) :
 //{
 //	MP_UTIL.start_timeout();
 //}
-//
-//client::client(const builder& b, const address& addr, loop lo) :
-//	session(session_impl::create(b, addr, lo))
-//{
-//	MP_UTIL.start_timeout();
-//}
+
+client::client(const builder& b, const address& addr, loop lo) :
+	session(session_impl::create(b, addr, lo))
+{
+	MP_UTIL.start_timeout();
+}
 
 client::~client() { }
 

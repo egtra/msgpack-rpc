@@ -65,6 +65,7 @@ public:
 
 private:
 	mp::shared_ptr<client_socket> m_sock;
+	bool recv_start;
 
 private:
 	client_transport();
@@ -91,24 +92,23 @@ void client_socket::on_response(msgid_t msgid,
 
 
 client_transport::client_transport(session_impl* s, const address& addr, const udp_builder& b)
+	: recv_start()
 {
-	int sock = ::socket(PF_INET, SOCK_DGRAM, 0);
-	if(sock < 0) {
-		throw mp::system_error(errno, "failed to open UDP socket");
-	}
+	int sock = s->get_loop_ref()->socket(PF_INET, SOCK_DGRAM);
 
 	try {
-		char addrbuf[addr.get_addrlen()];
-		addr.get_addr((sockaddr*)addrbuf);
+		sockaddr_storage addrbuf;
+		addr.get_addr((sockaddr*)&addrbuf);
 
-		if(::connect(sock, (sockaddr*)addrbuf, sizeof(addrbuf)) < 0) {
+		if(::connect(sock, (sockaddr*)&addrbuf, addr.get_addrlen()) < 0) {
 			throw mp::system_error(errno, "failed to connect UDP socket");
 		}
 
-		m_sock = s->get_loop_ref()->add_handler<client_socket>(sock, s);
+//		m_sock = s->get_loop_ref()->add_handler<client_socket>(sock, s);
+		m_sock = mp::make_shared<client_socket>(sock, s);
 
 	} catch(...) {
-		::close(sock);
+		::closesocket(sock);
 		throw;
 	}
 }
@@ -121,14 +121,22 @@ client_transport::~client_transport()
 void client_transport::send_data(sbuffer* sbuf)
 {
 	m_sock->send_data(sbuf);
+	if(!recv_start) {
+		recv_start = true;
+		m_sock->async_read();
+	}
 }
 
 void client_transport::send_data(auto_vreflife vbuf)
 {
 	m_sock->send_data(vbuf);
+	if(!recv_start) {
+		recv_start = true;
+		m_sock->async_read();
+	}
 }
 
-
+/*
 class server_socket : public dgram_handler<server_socket> {
 public:
 	server_socket(int sock, shared_server svr);
@@ -205,10 +213,10 @@ server_transport::server_transport(server_impl* svr, const address& addr)
 	}
 
 	try {
-		char addrbuf[addr.get_addrlen()];
-		addr.get_addr((sockaddr*)addrbuf);
+		sockaddr_storage addrbuf;
+		addr.get_addr((sockaddr*)&addrbuf);
 
-		if(::bind(sock, (sockaddr*)addrbuf, sizeof(addrbuf)) < 0) {
+		if(::bind(sock, (sockaddr*)&addrbuf, addr.get_addrlen()) < 0) {
 			throw mp::system_error(errno, "failed to bind UDP socket");
 		}
 
@@ -218,7 +226,7 @@ server_transport::server_transport(server_impl* svr, const address& addr)
 				);
 
 	} catch(...) {
-		::close(sock);
+		::closesocket(sock);
 		throw;
 	}
 }
@@ -232,7 +240,7 @@ void server_transport::close()
 {
 	m_sock->remove_handler();
 }
-
+*/
 
 }  // noname namespace
 
@@ -249,7 +257,7 @@ std::auto_ptr<client_transport> udp_builder::build(session_impl* s, const addres
 	return std::auto_ptr<client_transport>(new transport::udp::client_transport(s, addr, *this));
 }
 
-
+/*
 udp_listener::udp_listener(const std::string& host, uint16_t port) :
 	m_addr(ip_address(host, port)) { }
 
@@ -263,7 +271,7 @@ std::auto_ptr<server_transport> udp_listener::listen(server_impl* svr) const
 	return std::auto_ptr<server_transport>(
 			new transport::udp::server_transport(svr, m_addr));
 }
-
+*/
 
 }  // namespace rpc
 }  // namespace msgpack

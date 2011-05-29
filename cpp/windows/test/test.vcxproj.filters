@@ -56,5 +56,8 @@
     <ClCompile Include="zone.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="udp.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -40,16 +40,6 @@ unique_wait_handle register_wait_for_single_object(HANDLE hiocp, HANDLE hobject,
 	}
 }
 
-unique_socket make_socket(int af, int type, int protocol)
-{
-	SOCKET s = ::socket(af, type, protocol);
-	if(s == INVALID_SOCKET) {
-		throw mp::system_error(WSAGetLastError(), "socket failed");
-	}
-	return unique_socket(s);
-}
-
-
 class timer {
 public:
 	timer(HANDLE hiocp, int64_t value_100nsec, int interval_msec,
@@ -130,6 +120,8 @@ public:
 
 	void remove_timer(intptr_t timer);
 
+	void associate_socket(SOCKET s);
+
 public:
 	enum dispatch_result_t {
 		dispatch_end,
@@ -172,6 +164,16 @@ private:
 
 #define ANON_impl static_cast<loop_impl*>(m_impl)
 
+SOCKET loop::socket(int af, int type, int protocol)
+{
+	SOCKET s = ::WSASocket(af, type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED);
+	if(s == INVALID_SOCKET) {
+		throw mp::system_error(WSAGetLastError(), "socket failed");
+	}
+	ANON_impl->associate_socket(s);
+	return s;
+}
+
 void loop::read(SOCKET fd, void* buf, size_t size, read_callback_t callback)
 {
 	WSABUF wb = { size, static_cast<char*>(buf) };
@@ -187,6 +189,23 @@ void loop::read(SOCKET fd, void* buf, size_t size, read_callback_t callback)
 	overlapped.release();
 }
 
+void loop::recv_from(SOCKET sock, void* buf, size_t size,
+	sockaddr* from, int* fromLength, read_callback_t callback)
+{
+	WSABUF wb = { size, static_cast<char*>(buf) };
+	DWORD flags = 0;
+	std::auto_ptr<overlapped_callback> overlapped(
+		new overlapped_callback(mp::bind(callback, _3, _2)));
+	int rl = ::WSARecvFrom(sock, &wb, 1, NULL, &flags, from, fromLength, overlapped.get(), NULL);
+	if(rl != 0) {
+		int err = WSAGetLastError();
+		if (err != WSA_IO_PENDING) { throw mp::system_error(err, "read error"); }
+	}
+
+	overlapped.release();
+}
+
+
 // wavy_out.cc
 
 void xfer2::push_write(const void* buf, size_t size)
@@ -200,7 +219,7 @@ void xfer2::push_write(const void* buf, size_t size)
 void xfer2::push_writev(const struct iovec* vec, size_t veclen)
 {
 	sync_ref ref(m_sync);
-	ref->buffer.resize(ref->buffer.size() + veclen);
+	ref->buffer.reserve(ref->buffer.size() + veclen);
 	for(size_t i = 0; i < veclen; ++i) {
 		WSABUF b = {static_cast<ULONG>(vec[i].iov_len), static_cast<char*>(const_cast<void*>(vec[i].iov_base))};
 		ref->buffer.push_back(b);
@@ -542,6 +561,14 @@ void loop_impl::remove_timer(intptr_t timer)
 		throw std::invalid_argument("remove_timer");
 	}
 	ref->erase(it);
+}
+
+void loop_impl::associate_socket(SOCKET s)
+{
+	if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(s), hiocp.get(), 0, 0) == NULL) {
+		int err = static_cast<int>(GetLastError());
+		throw mp::system_error(err, "CreateIoCompletionPort failed");
+	}
 }
 
 }  // noname namespace
@@ -915,10 +942,7 @@ SOCKET loop::accept(SOCKET fd, sockaddr* addr, int addr_len)
 {
 	SOCKET sock = accept_impl(fd, addr, addr_len);
 	if(sock != INVALID_SOCKET) {
-		if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(sock), ANON_impl->hiocp.get(), 0, 0) == NULL) {
-			int err = static_cast<int>(GetLastError());
-			throw mp::system_error(err, "CreateIoCompletionPort failed");
-		}
+		ANON_impl->associate_socket(sock);
 	}
 	return sock;
 }
@@ -942,10 +966,7 @@ void loop::accept_ex(SOCKET listen_socket, SOCKET accept_socket, void* buffer, s
 		}
 	}
 
-	if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(accept_socket), ANON_impl->hiocp.get(), 0, 0) == NULL) {
-		int err = static_cast<int>(GetLastError());
-		throw mp::system_error(err, "CreateIoCompletionPort failed");
-	}
+	ANON_impl->associate_socket(accept_socket);
 
 	overlapped.release();
 }

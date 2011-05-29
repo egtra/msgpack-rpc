@@ -89,55 +89,67 @@ protected:
 	static void on_read(mp::weak_ptr<stream_handler> whandler, DWORD error, DWORD transferred);
 };
 
-//template <typename MixIn>
-//class dgram_handler : public mp::wavy::handler {
-//public:
-//	dgram_handler(int fd, loop lo);
-//	~dgram_handler();
-//
-//	void remove_handler();
-//
-//	mp::shared_ptr<message_sendable> get_response_sender(
-//			const sockaddr* addrbuf, socklen_t addrlen);
-//
-//	// message_sendable interface
-//	class response_sender;
-//	void send_data(const sockaddr* addrbuf, socklen_t addrlen, sbuffer* sbuf);
-//	void send_data(const sockaddr* addrbuf, socklen_t addrlen, std::auto_ptr<vreflife> vbuf);
-//
-//	// connected dgram
-//	void send_data(sbuffer* sbuf);
-//	void send_data(std::auto_ptr<vreflife> vbuf);
-//
-//	// mp::wavy::handler interface
-//	void on_read(mp::wavy::event& e);
-//
-//	void on_message(object msg, auto_zone z,
-//			const sockaddr* addrbuf, socklen_t addrlen);
-//
-//	void on_request(
-//			msgid_t msgid,
-//			object method, object params, auto_zone z,
-//			const sockaddr* addrbuf, socklen_t addrlen)
-//	{
-//		throw msgpack::type_error();  // FIXME
-//	}
-//
-//	void on_notify(
-//			object method, object params, auto_zone z)
-//	{
-//		throw msgpack::type_error();  // FIXME
-//	}
-//
-//	void on_response(msgid_t msgid,
-//			object result, object error, auto_zone z)
-//	{
-//		throw msgpack::type_error();  // FIXME
-//	}
-//
-//private:
-//	loop m_loop;
-//};
+template <typename MixIn>
+class dgram_handler : public mp::enable_shared_from_this<dgram_handler<MixIn> > {
+public:
+	dgram_handler(int fd, loop lo);
+	~dgram_handler();
+
+	void remove_handler();
+
+	mp::shared_ptr<message_sendable> get_response_sender(
+			const sockaddr* addrbuf, socklen_t addrlen);
+
+	// message_sendable interface
+	class response_sender;
+	void send_data(const sockaddr* addrbuf, socklen_t addrlen, sbuffer* sbuf);
+	void send_data(const sockaddr* addrbuf, socklen_t addrlen, std::auto_ptr<vreflife> vbuf);
+
+	// connected dgram
+	void send_data(sbuffer* sbuf);
+	void send_data(std::auto_ptr<vreflife> vbuf);
+
+	void async_read();
+
+	void on_message(object msg, auto_zone z,
+			const sockaddr* addrbuf, socklen_t addrlen);
+
+	void on_request(
+			msgid_t msgid,
+			object method, object params, auto_zone z,
+			const sockaddr* addrbuf, socklen_t addrlen)
+	{
+		throw msgpack::type_error();  // FIXME
+	}
+
+	void on_notify(
+			object method, object params, auto_zone z)
+	{
+		throw msgpack::type_error();  // FIXME
+	}
+
+	void on_response(msgid_t msgid,
+			object result, object error, auto_zone z)
+	{
+		throw msgpack::type_error();  // FIXME
+	}
+
+	SOCKET fd() const { return m_socket.get(); }
+
+private:
+	msgpack::rpc::impl::windows::unique_socket m_socket;
+	loop m_loop;
+
+protected:
+	struct recv_info {
+		char buffer[MSGPACK_RPC_DGRAM_BUFFER_SIZE];
+		sockaddr_storage addr;
+		int addr_length;
+	};
+
+	static void on_read(mp::weak_ptr<dgram_handler> whandler, recv_info* info, DWORD error, DWORD transferred);
+
+};
 
 
 template <typename MixIn>
@@ -147,19 +159,19 @@ inline stream_handler<MixIn>::stream_handler(msgpack::rpc::impl::windows::unique
 	m_loop(lo) { }
 
 
-//template <typename MixIn>
-//inline dgram_handler<MixIn>::dgram_handler(int fd, loop lo) :
-//	mp::wavy::handler(fd),
-//	m_loop(lo) { }
-//
-//template <typename MixIn>
-//inline dgram_handler<MixIn>::~dgram_handler() { }
-//
-//template <typename MixIn>
-//inline void dgram_handler<MixIn>::remove_handler()
-//{
+template <typename MixIn>
+inline dgram_handler<MixIn>::dgram_handler(int fd, loop lo) :
+	m_socket(fd),
+	m_loop(lo) { }
+
+template <typename MixIn>
+inline dgram_handler<MixIn>::~dgram_handler() { }
+
+template <typename MixIn>
+inline void dgram_handler<MixIn>::remove_handler()
+{
 //	m_loop->remove_handler(fd());
-//}
+}
 
 
 template <typename MixIn>
@@ -183,10 +195,10 @@ inline void stream_handler<MixIn>::send_data(std::auto_ptr<vreflife> vbuf)
 //	// FIXME check errno == EAGAIN
 //	sendto(fd(), sbuf->data(), sbuf->size(), 0, addrbuf, addrlen);
 //}
-//
-//template <typename MixIn>
-//inline void dgram_handler<MixIn>::send_data(const sockaddr* addrbuf, socklen_t addrlen, std::auto_ptr<vreflife> vbuf)
-//{
+
+template <typename MixIn>
+inline void dgram_handler<MixIn>::send_data(const sockaddr* addrbuf, socklen_t addrlen, std::auto_ptr<vreflife> vbuf)
+{
 //	// FIXME fd is non-blocking mode
 //	// FIXME check errno == EAGAIN
 //	struct msghdr msg;
@@ -196,20 +208,20 @@ inline void stream_handler<MixIn>::send_data(std::auto_ptr<vreflife> vbuf)
 //	msg.msg_iov = const_cast<struct iovec*>(vbuf->vector());
 //	msg.msg_iovlen = vbuf->vector_size();
 //	sendmsg(fd(), &msg, 0);
-//}
-//
-//template <typename MixIn>
-//inline void dgram_handler<MixIn>::send_data(msgpack::sbuffer* sbuf)
-//{
-//	//// FIXME?
-//	//m_loop->write(fd(), sbuf->data(), sbuf->size(), &::free, sbuf->data());
-//	//sbuf->release();
-//	send(fd(), sbuf->data(), sbuf->size(), 0);
-//}
-//
-//template <typename MixIn>
-//inline void dgram_handler<MixIn>::send_data(std::auto_ptr<vreflife> vbuf)
-//{
+}
+
+template <typename MixIn>
+inline void dgram_handler<MixIn>::send_data(msgpack::sbuffer* sbuf)
+{
+	//// FIXME?
+	//m_loop->write(fd(), sbuf->data(), sbuf->size(), &::free, sbuf->data());
+	//sbuf->release();
+	send(fd(), sbuf->data(), sbuf->size(), 0);
+}
+
+template <typename MixIn>
+inline void dgram_handler<MixIn>::send_data(std::auto_ptr<vreflife> vbuf)
+{
 //	//// FIXME?
 //	//m_loop->writev(fd(), vbuf->vector(), vbuf->vector_size(), z);
 //	struct msghdr msg;
@@ -217,7 +229,7 @@ inline void stream_handler<MixIn>::send_data(std::auto_ptr<vreflife> vbuf)
 //	msg.msg_iov = const_cast<struct iovec*>(vbuf->vector());
 //	msg.msg_iovlen = vbuf->vector_size();
 //	sendmsg(fd(), &msg, 0);
-//}
+}
 
 
 template <typename MixIn>
@@ -257,43 +269,43 @@ void stream_handler<MixIn>::on_message(object msg, auto_zone z)
 }
 
 
-//template <typename MixIn>
-//void dgram_handler<MixIn>::on_message(object msg, auto_zone z,
-//		const sockaddr* addrbuf, socklen_t addrlen)
-//{
-//	msg_rpc rpc;
-//	msg.convert(&rpc);
-//
-//	switch(rpc.type) {
-//	case REQUEST: {
-//			msg_request<object, object> req;
-//			msg.convert(&req);
-//			static_cast<MixIn*>(this)->on_request(
-//					req.msgid, req.method, req.param, z,
-//					addrbuf, addrlen);
-//		}
-//		break;
-//
-//	case RESPONSE: {
-//			msg_response<object, object> res;
-//			msg.convert(&res);
-//			static_cast<MixIn*>(this)->on_response(
-//					res.msgid, res.result, res.error, z);
-//		}
-//		break;
-//
-//	case NOTIFY: {
-//			msg_notify<object, object> req;
-//			msg.convert(&req);
-//			static_cast<MixIn*>(this)->on_notify(
-//					req.method, req.param, z);
-//		}
-//		break;
-//
-//	default:
-//		throw msgpack::type_error();
-//	}
-//}
+template <typename MixIn>
+void dgram_handler<MixIn>::on_message(object msg, auto_zone z,
+		const sockaddr* addrbuf, socklen_t addrlen)
+{
+	msg_rpc rpc;
+	msg.convert(&rpc);
+
+	switch(rpc.type) {
+	case REQUEST: {
+			msg_request<object, object> req;
+			msg.convert(&req);
+			static_cast<MixIn*>(this)->on_request(
+					req.msgid, req.method, req.param, z,
+					addrbuf, addrlen);
+		}
+		break;
+
+	case RESPONSE: {
+			msg_response<object, object> res;
+			msg.convert(&res);
+			static_cast<MixIn*>(this)->on_response(
+					res.msgid, res.result, res.error, z);
+		}
+		break;
+
+	case NOTIFY: {
+			msg_notify<object, object> req;
+			msg.convert(&req);
+			static_cast<MixIn*>(this)->on_notify(
+					req.method, req.param, z);
+		}
+		break;
+
+	default:
+		throw msgpack::type_error();
+	}
+}
 
 
 template <typename MixIn>
@@ -395,6 +407,53 @@ try {
 //	e.remove();
 //	return;
 //}
+
+template <typename MixIn>
+void dgram_handler<MixIn>::async_read()
+{
+	using namespace mp::placeholders;
+
+	std::auto_ptr<recv_info> info(new recv_info);
+	info->addr_length = sizeof info->addr;
+	mp::weak_ptr<dgram_handler> whandler(shared_from_this());
+	m_loop->recv_from(fd(), info->buffer, sizeof info->buffer, reinterpret_cast<sockaddr*>(&info->addr), &info->addr_length,
+		mp::bind(&dgram_handler<MixIn>::on_read, whandler, info.get(), _1, _2));
+	info.release();
+}
+
+
+template <typename MixIn>
+void dgram_handler<MixIn>::on_read(mp::weak_ptr<dgram_handler> whandler, recv_info* pinfo, DWORD error, DWORD transferred)
+try {
+	std::auto_ptr<recv_info> info(pinfo);
+
+	if(error != 0) {
+		throw mp::system_error(error, "async_read");
+	}
+
+	mp::shared_ptr<dgram_handler> pthis(whandler);
+	if(pthis) {
+		msgpack::unpacked result;
+		msgpack::unpack(&result, info->buffer, transferred);
+
+		result.zone()->push_finalizer(info);
+
+		pthis->on_message(result.get(), result.zone(), reinterpret_cast<const sockaddr*>(&pinfo->addr), pinfo->addr_length);
+
+		pthis->async_read();
+	}
+} catch(msgpack::type_error&) {
+	LOG_WARN("connection: type error");
+	return;
+} catch(closed_exception&) {
+	return;
+} catch(std::exception& ex) {
+	LOG_WARN("connection: ", ex.what());
+	return;
+} catch(...) {
+	LOG_WARN("connection: unknown error");
+	return;
+}
 
 
 template <typename MixIn>

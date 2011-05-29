@@ -96,6 +96,7 @@
     </ClCompile>
     <ClCompile Include="sync_call.cc" />
     <ClCompile Include="test.cpp" />
+    <ClCompile Include="udp.cc" />
     <ClCompile Include="zone.cc" />
   </ItemGroup>
   <ItemGroup>

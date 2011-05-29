@@ -156,10 +156,7 @@
     <ClCompile Include="..\..\src\msgpack\rpc\session.cc" />
     <ClCompile Include="..\..\src\msgpack\rpc\session_pool.cc" />
     <ClCompile Include="..\..\src\msgpack\rpc\transport\tcp.cc" />
-    <ClCompile Include="..\..\src\msgpack\rpc\transport\udp.cc">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="..\..\src\msgpack\rpc\transport\udp.cc" />
     <ClCompile Include="..\..\src\msgpack\rpc\transport\unix.cc">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>

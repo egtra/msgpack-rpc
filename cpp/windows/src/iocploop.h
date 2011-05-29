@@ -82,8 +82,7 @@ public:
 	void add_thread(size_t num);
 
 
-	void remove_handler(SOCKET fd);
-
+	SOCKET socket(int af, int type, int protocol = 0);
 
 	typedef mp::function<void (unique_socket& fd, int err)> connect_callback_t;
 
@@ -126,6 +125,11 @@ public:
 	void remove_timer(intptr_t ident);
 
 	void read(SOCKET fd, void* buf, size_t size, read_callback_t callback);
+
+	void recv_from(SOCKET sock, void* buf, size_t size,
+		sockaddr* from, int* fromLength, read_callback_t callback);
+
+	typedef mp::function<void (unique_socket& fd, int err)> listen_callback_t;
 
 
 	typedef void (*finalize_t)(void* user);
