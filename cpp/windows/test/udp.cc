@@ -6,7 +6,7 @@
 
 void udp()
 {
-	/*// run server {
+	// run server {
 	rpc::server svr;
 
 	std::auto_ptr<rpc::dispatcher> dp(new myecho);
@@ -16,11 +16,11 @@ void udp()
 
 	svr.start(1);
 	// }
-*/
+
 
 	// create client
-	//rpc::client cli(msgpack::rpc::udp_builder(), msgpack::rpc::ip_address("127.0.0.1", 18811));
-	rpc::client cli(msgpack::rpc::udp_builder(), msgpack::rpc::ip_address("192.168.1.205", 18811));
+	rpc::client cli(msgpack::rpc::udp_builder(), msgpack::rpc::ip_address("127.0.0.1", 18811));
+	//rpc::client cli(msgpack::rpc::udp_builder(), msgpack::rpc::ip_address("192.168.1.205", 18811));
 
 	// call
 	std::string msg("MessagePack-RPC");
