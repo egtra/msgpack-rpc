@@ -16,7 +16,9 @@
 //    limitations under the License.
 //
 #include "address.h"
+#ifndef _WIN32
 #include <netdb.h>
+#endif
 #include <stdexcept>
 #include <string.h>
 
@@ -123,7 +125,7 @@ ipv6_address::ipv6_address(const std::string& host, uint16_t port) :
 	resolve(host.c_str(), port, 2);
 }
 
-
+#ifndef _WIN32
 path_address::path_address(const std::string& path) :
 	address(AF_LOCAL)
 {
@@ -138,10 +140,22 @@ path_address::path_address(const std::string& path) :
 	m.ex.addrlen = sizeof(struct sockaddr_un);
 	m.ex.addr = (struct sockaddr*)addr;
 }
-
+#endif
 
 std::ostream& operator<< (std::ostream& stream, const address& a)
 {
+#ifdef _WIN32
+	if(a.family() == AF_INET || a.family() == AF_INET6) {
+		char buf[41];
+		DWORD size = sizeof(buf);
+		sockaddr_storage addr;
+		a.get_addr(reinterpret_cast<sockaddr*>(&addr));
+		if(WSAAddressToStringA(reinterpret_cast<sockaddr*>(&addr), a.get_addrlen(), NULL, buf, &size) != 0) {
+			strcpy_s(buf, "(fail)");
+		}
+		return stream << buf;
+
+#else
 	if(a.family() == AF_INET) {
 		char buf[16];
 		return stream << inet_ntop(AF_INET, &a.m.ipv4.sin_addr, buf, sizeof(buf)) << ':' << ntohs(a.m.ipv4.sin_port);
@@ -149,10 +163,9 @@ std::ostream& operator<< (std::ostream& stream, const address& a)
 	} else if(a.family() == AF_INET6) {
 		char buf[41];
 		return stream << '[' << ::inet_ntop(AF_INET6, &a.m.ipv6.sin6_addr, buf, sizeof(buf)) << "]:" << ntohs(a.m.ipv6.sin6_port);
-
 	} else if(a.family() == AF_LOCAL) {
 		return stream << ((struct sockaddr_un*)a.m.ex.addr)->sun_path;
-
+#endif
 	} else {
 		// FIXME
 		return stream << "<unknown address>";

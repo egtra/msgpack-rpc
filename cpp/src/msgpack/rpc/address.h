@@ -20,17 +20,26 @@
 
 #include <iostream>
 #include <string.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <Windows.h>
+#else
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/un.h>
+#endif
 #include <msgpack.hpp>
 #include <mp/unordered_map.h>
 
 namespace msgpack {
 namespace rpc {
 
+#ifdef _WIN32
+typedef ADDRESS_FAMILY sa_family_t;
+#endif
 
 class address {
 public:
@@ -121,14 +130,14 @@ public:
 	void set_scope_id(uint32_t v) { m.ipv6.sin6_scope_id = v; }
 };
 
-
+#ifndef _WIN32
 class path_address : public address {
 public:
 	path_address(const std::string& path);
 
 	const char* get_path() const;
 };
-
+#endif
 
 inline address::address()
 {
@@ -217,12 +226,12 @@ inline void ip_address::set_port(uint16_t port)
 	m.ipv4.sin_port = htons(port);
 }
 
-
+#ifndef _WIN32
 inline const char* path_address::get_path() const
 {
 	return ((struct sockaddr_un*)m.ex.addr)->sun_path;
 }
-
+#endif
 
 inline bool address::operator== (const address& o) const
 {

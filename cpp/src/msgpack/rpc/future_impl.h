@@ -33,9 +33,22 @@ public:
 		m_session(s),
 		m_loop(lo),
 		m_timeout(s->get_timeout())  // FIXME
-	{ }
+	{
+#ifdef _WIN32
+		m_hevent = CreateEvent(NULL, TRUE, FALSE, NULL);
+		if (m_hevent == NULL)
+		{
+			throw mp::system_error(::GetLastError(), "failed to create event object");
+		}
+#endif
+	}
 
-	~future_impl() { }
+	~future_impl()
+	{
+#ifdef _WIN32
+		CloseHandle(m_hevent);
+#endif
+	}
 
 	object get_impl();
 
@@ -81,7 +94,11 @@ private:
 	auto_zone m_zone;
 
 	mp::pthread_mutex m_mutex;
+#ifdef _WIN32
+	HANDLE m_hevent;
+#else
 	mp::pthread_cond m_cond;
+#endif
 
 private:
 	future_impl();

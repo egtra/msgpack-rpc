@@ -82,8 +82,13 @@ void session_impl::send_notify_impl(auto_vreflife vbuf)
 
 msgid_t session_impl::next_msgid()
 {
+#if _MSC_VER >= 1400
+	static_assert(sizeof (msgid_t) == sizeof (long), "FIXME: _InterlockedIncrement");
+	return static_cast<msgid_t>(_InterlockedIncrement(reinterpret_cast<volatile long*>(&m_msgid_rr)));
+#else
 	// FIXME __sync_add_and_fetch
 	return __sync_add_and_fetch(&m_msgid_rr, 1);
+#endif
 }
 
 

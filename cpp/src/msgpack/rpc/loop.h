@@ -18,18 +18,29 @@
 #ifndef MSGPACK_RPC_LOOP_H__
 #define MSGPACK_RPC_LOOP_H__
 
+#ifdef MSGPACK_RPC_WINIOCP
+#include "winiocp/loop_impl.h"
+#else
 #include <mp/wavy.h>
+#endif
 #include <mp/memory.h>
 
 namespace msgpack {
 namespace rpc {
 
-
+#ifdef MSGPACK_RPC_WINIOCP
+class loop : public mp::shared_ptr<winiocp::loop_impl> {
+public:
+	loop() : mp::shared_ptr<winiocp::loop_impl>(new winiocp::loop_impl()) { }
+	~loop() { }
+};
+#else
 class loop : public mp::shared_ptr<mp::wavy::loop> {
 public:
 	loop() : mp::shared_ptr<mp::wavy::loop>(new mp::wavy::loop()) { }
 	~loop() { }
 };
+#endif
 
 
 }  // namespace rpc

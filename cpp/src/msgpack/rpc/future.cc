@@ -25,10 +25,14 @@ namespace rpc {
 
 void future_impl::wait()
 {
+#ifdef _WIN32
+	WaitForSingleObject(m_hevent, INFINITE);
+#else
 	mp::pthread_scoped_lock lk(m_mutex);
 	while(m_session) {
 		m_cond.wait(m_mutex);
 	}
+#endif
 }
 
 void future_impl::recv()
@@ -97,7 +101,11 @@ void future_impl::set_result(object result, object error, auto_zone z)
 	m_zone = z;
 	m_session.reset();
 
+#ifdef _WIN32
+	SetEvent(m_hevent);
+#else
 	m_cond.broadcast();
+#endif
 
 	if(m_callback) {
 		lk.unlock();
