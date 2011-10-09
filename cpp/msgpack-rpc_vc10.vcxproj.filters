@@ -19,6 +19,9 @@
     <Filter Include="mp">
       <UniqueIdentifier>{a54bbf34-5c13-4d0d-a5aa-a6f31e784332}</UniqueIdentifier>
     </Filter>
+    <Filter Include="msgpack\rpc\transport\iocp">
+      <UniqueIdentifier>{8d7c3273-2038-4984-b8ad-93798ec497e6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\cclog\cclog_null.h">
@@ -145,6 +148,30 @@
     <ClInclude Include="src\msgpack\rpc\version.h">
       <Filter>msgpack\rpc</Filter>
     </ClInclude>
+    <ClInclude Include="src\msgpack\rpc\transport\base.h">
+      <Filter>msgpack\rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="src\msgpack\rpc\transport\tcp.h">
+      <Filter>msgpack\rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="src\msgpack\rpc\transport\udp.h">
+      <Filter>msgpack\rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="src\msgpack\rpc\transport\unix.h">
+      <Filter>msgpack\rpc\transport</Filter>
+    </ClInclude>
+    <ClInclude Include="src\msgpack\rpc\transport\iocp\base.h">
+      <Filter>msgpack\rpc\transport\iocp</Filter>
+    </ClInclude>
+    <ClInclude Include="src\msgpack\rpc\transport\iocp\tcp.h">
+      <Filter>msgpack\rpc\transport\iocp</Filter>
+    </ClInclude>
+    <ClInclude Include="src\msgpack\rpc\transport\iocp\udp.h">
+      <Filter>msgpack\rpc\transport\iocp</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mp\cstdint.h">
+      <Filter>mp</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\cclog\cclog_null.cc">
@@ -193,6 +220,24 @@
       <Filter>msgpack\rpc</Filter>
     </ClCompile>
     <ClCompile Include="stdafx.cpp" />
+    <ClCompile Include="src\msgpack\rpc\transport\tcp.cc">
+      <Filter>msgpack\rpc\transport</Filter>
+    </ClCompile>
+    <ClCompile Include="src\msgpack\rpc\transport\udp.cc">
+      <Filter>msgpack\rpc\transport</Filter>
+    </ClCompile>
+    <ClCompile Include="src\msgpack\rpc\transport\unix.cc">
+      <Filter>msgpack\rpc\transport</Filter>
+    </ClCompile>
+    <ClCompile Include="src\msgpack\rpc\transport\iocp\tcp.cc">
+      <Filter>msgpack\rpc\transport\iocp</Filter>
+    </ClCompile>
+    <ClCompile Include="src\msgpack\rpc\transport\iocp\udp.cc">
+      <Filter>msgpack\rpc\transport\iocp</Filter>
+    </ClCompile>
+    <ClCompile Include="src\msgpack\rpc\winiocp\loop_impl.cc">
+      <Filter>msgpack\rpc\winiocp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="src\cclog\cclog.hmpl">

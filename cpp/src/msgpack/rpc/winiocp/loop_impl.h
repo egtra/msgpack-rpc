@@ -15,25 +15,64 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 //
-#ifndef MSGPACK_RPC_WINIOCP_LOOP_IMPL_H__
-#define MSGPACK_RPC_WINIOCP_LOOP_IMPL_H__
+#ifndef MSGPACK_RPC_WINIOCP_IOCP_LOOP_H__
+#define MSGPACK_RPC_WINIOCP_IOCP_LOOP_H__
 
 #include "mp/functional.h"
+#include "mp/memory.h"
+#include "mp/cstdint.h"
 
 namespace msgpack {
 namespace rpc {
 namespace winiocp {
 
-class loop_impl {
+namespace detail
+{
+
+class loop_impl;
+
+}  // namespace detail
+
+class iocp_loop : public mp::enable_shared_from_this<iocp_loop> {
 public:
-	loop_impl() {}
-	~loop_impl() {}
+	explicit iocp_loop(int threads = 0);
+	~iocp_loop();
+
+	void start(size_t num);
+
+	void run(size_t num);
 
 	bool is_running() const;
 
 	void run_once();
+	void run_nonblock();
+	void flush();
 
-	intptr_t add_timer(double value_sec, double interval_sec, mp::function<bool ()> callback);
+	void end();
+	bool is_end() const;
+
+	void join();
+	void detach();
+
+	void add_thread(size_t num);
+
+	typedef mp::function<void (SOCKET s, DWORD err)> connect_callback_t;
+
+	void connect(const sockaddr* addr, socklen_t addrlen, double timeout_sec, connect_callback_t callback);
+
+	typedef mp::function<void (SOCKET s, DWORD err)> listen_callback_t;
+
+	SOCKET listen(int socket_family, int socket_type, int protocol,
+		const sockaddr* addr, socklen_t addrlen, listen_callback_t callback, int backlog = 1024);
+
+	typedef mp::function<void (DWORD transferred, DWORD error)> send_receive_callback_t;
+
+	void send(SOCKET socket, const WSABUF* buffers, size_t count, send_receive_callback_t callback);
+	void receive(SOCKET socket, const WSABUF* buffers, size_t count, send_receive_callback_t callback);
+
+	mp::intptr_t add_timer(double value_sec, double interval_sec, mp::function<bool ()> callback);
+
+	void remove_timer(mp::intptr_t ident);
 
 	template <typename F>
 	void submit(F f);
@@ -74,65 +113,69 @@ private:
 	typedef mp::function<void ()> task_t;
 	void submit_impl(task_t f);
 
-	loop_impl(const loop_impl&); // = delete;
-	loop_impl& operator =(const loop_impl&); // = delete;
+	SOCKET craete_socket(int af, int type, int protocol);
+
+	mp::unique_ptr<detail::loop_impl, mp::default_delete<detail::loop_impl> > m_impl;
+
+	iocp_loop(const iocp_loop&); // = delete;
+	iocp_loop& operator =(const iocp_loop&); // = delete;
 };
 
 template <typename F>
-inline void loop_impl::submit(F f)
+inline void iocp_loop::submit(F f)
 	{ submit_impl(task_t(f)); }
 template <typename F, typename A1>
-inline void loop_impl::submit(F f, A1 a1)
+inline void iocp_loop::submit(F f, A1 a1)
 	{ submit_impl(mp::bind(f, a1)); }
 template <typename F, typename A1, typename A2>
-inline void loop_impl::submit(F f, A1 a1, A2 a2)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2)
 	{ submit_impl(mp::bind(f, a1, a2)); }
 template <typename F, typename A1, typename A2, typename A3>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3)
 	{ submit_impl(mp::bind(f, a1, a2, a3)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15)); }
 template <typename F, typename A1, typename A2, typename A3, typename A4, typename A5, typename A6, typename A7, typename A8, typename A9, typename A10, typename A11, typename A12, typename A13, typename A14, typename A15, typename A16>
-inline void loop_impl::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15, A16 a16)
+inline void iocp_loop::submit(F f, A1 a1, A2 a2, A3 a3, A4 a4, A5 a5, A6 a6, A7 a7, A8 a8, A9 a9, A10 a10, A11 a11, A12 a12, A13 a13, A14 a14, A15 a15, A16 a16)
 	{ submit_impl(mp::bind(f, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16)); }
 
 }  // namespace winiocp
 }  // namespace rpc
 }  // namespace msgpack
 
-#endif /* msgpack/rpc/winiocp/loop_impl.h */
+#endif /* msgpack/rpc/winiocp/iocp_loop.h */
 

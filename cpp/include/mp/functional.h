@@ -26,15 +26,18 @@ namespace mp {
 	namespace placeholders {
 		using namespace std::tr1::placeholders;
 	}
+	using std::tr1::mem_fn;
 }
 #else
 #ifdef MP_FUNCTIONAL_BOOST_ORG
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
+#include <boost/mem_fn.hpp>
 namespace mp {
 	using boost::function;
 	using boost::bind;
 	namespace placeholders { }
+	using boost::mem_fn;
 }
 #else
 #ifndef MP_FUNCTIONAL_STANDARD
@@ -45,6 +48,7 @@ namespace mp {
 	namespace placeholders {
 		using namespace std::tr1::placeholders;
 	}
+	using std::tr1::mem_fn;
 }
 #else
 #include <functional>
@@ -54,6 +58,7 @@ namespace mp {
 	namespace placeholders {
 		using namespace std::placeholders;
 	}
+	using std::mem_fn;
 }
 #endif
 #endif

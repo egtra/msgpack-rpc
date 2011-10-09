@@ -1,5 +1,5 @@
 //
-// msgpack::rpc::loop - MessagePack-RPC for C++
+// msgpack::rpc::transport::udp - MessagePack-RPC for C++
 //
 // Copyright (C) 2009-2010 FURUHASHI Sadayuki
 //
@@ -15,36 +15,46 @@
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
 //
-#ifndef MSGPACK_RPC_LOOP_H__
-#define MSGPACK_RPC_LOOP_H__
+#ifndef MSGPACK_RPC_TRANSPORT_UDP_H__
+#define MSGPACK_RPC_TRANSPORT_UDP_H__
 
-#ifdef MSGPACK_RPC_WINIOCP
-#include "winiocp/loop_impl.h"
-#else
-#include <mp/wavy.h>
-#endif
-#include <mp/memory.h>
+#include "../transport.h"
+#include <mp/functional.h>
+#include <mp/sync.h>
+#include <mp/utilize.h>
 
 namespace msgpack {
 namespace rpc {
 
-#ifdef MSGPACK_RPC_WINIOCP
-class loop : public mp::shared_ptr<winiocp::iocp_loop> {
+
+class udp_builder : public builder::base<udp_builder> {
 public:
-	loop() : mp::shared_ptr<winiocp::iocp_loop>(new winiocp::iocp_loop()) { }
-	~loop() { }
+	udp_builder();
+	~udp_builder();
+
+	std::auto_ptr<client_transport> build(session_impl* s, const address& addr) const;
 };
-#else
-class loop : public mp::shared_ptr<mp::wavy::loop> {
+
+
+class udp_listener : public listener::base<udp_listener> {
 public:
-	loop() : mp::shared_ptr<mp::wavy::loop>(new mp::wavy::loop()) { }
-	~loop() { }
+	udp_listener(const std::string& host, uint16_t port);
+	udp_listener(const address& addr);
+
+	~udp_listener();
+
+	std::auto_ptr<server_transport> listen(server_impl* svr) const;
+
+private:
+	address m_addr;
+
+private:
+	udp_listener();
 };
-#endif
 
 
 }  // namespace rpc
 }  // namespace msgpack
 
-#endif /* msgpack/rpc/loop.h */
+#endif /* msgpack/rpc/transport/udp.h */
 

@@ -23,7 +23,6 @@
 namespace mp {
 	using std::tr1::shared_ptr;
 	using std::tr1::wak_ptr;
-	//using std::tr2::scoped_ptr;
 	using std::tr1::static_pointer_cast;
 	using std::tr1::dynamic_pointer_cast;
 	using std::tr1::enable_shared_from_this;
@@ -33,14 +32,21 @@ namespace mp {
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/weak_ptr.hpp>
-//#include <boost/scoped_ptr.hpp>
+#include <boost/interprocess/smart_ptr/unique_ptr.hpp>
+#include <boost/checked_delete.hpp>
+#include <boost/make_shared.hpp>
 namespace mp {
 	using boost::shared_ptr;
 	using boost::weak_ptr;
-	//using boost::scoped_ptr;
+	using boost::interprocess::unique_ptr;
 	using boost::static_pointer_cast;
 	using boost::dynamic_pointer_cast;
 	using boost::enable_shared_from_this;
+	using boost::make_shared;
+	template<typename T>
+	struct default_delete : boost::checked_deleter<T> {};
+	template<typename T>
+	struct default_delete<T[]> : boost::checked_array_deleter<T> {};
 }
 #else
 #ifndef MP_MEMORY_STANDARD
@@ -48,7 +54,6 @@ namespace mp {
 namespace mp {
 	using std::tr1::shared_ptr;
 	using std::tr1::weak_ptr;
-	//using std::tr2::scoped_ptr;
 	using std::tr1::static_pointer_cast;
 	using std::tr1::dynamic_pointer_cast;
 	using std::tr1::enable_shared_from_this;
@@ -58,10 +63,17 @@ namespace mp {
 namespace mp {
 	using std::shared_ptr;
 	using std::weak_ptr;
-	//using std::scoped_ptr;
+	using std::unique_ptr;
 	using std::static_pointer_cast;
 	using std::dynamic_pointer_cast;
 	using std::enable_shared_from_this;
+	using std::make_shared;
+	template<typename T>
+	struct default_delete : std::default_delete<T>
+	{
+		typedef void result_type; // workaround for MSVC 10
+	};
+
 }
 #endif
 #endif
