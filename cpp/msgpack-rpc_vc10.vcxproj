@@ -88,6 +88,8 @@
     <ClInclude Include="include\mp\unordered_set.h" />
     <ClInclude Include="include\mp\utilize.h" />
     <ClInclude Include="src\cclog\cclog.h" />
+    <ClInclude Include="src\cclog\cclog_console.h" />
+    <ClInclude Include="src\cclog\cclog_debugoutput.h" />
     <ClInclude Include="src\cclog\cclog_null.h" />
     <ClInclude Include="src\cclog\cclog_ostream.h" />
     <ClInclude Include="src\cclog\cclog_syslog.h" />
@@ -129,6 +131,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\cclog\cclog.cc" />
+    <ClCompile Include="src\cclog\cclog_console.cc" />
+    <ClCompile Include="src\cclog\cclog_debugoutput.cc" />
     <ClCompile Include="src\cclog\cclog_null.cc" />
     <ClCompile Include="src\cclog\cclog_ostream.cc" />
     <ClCompile Include="src\cclog\cclog_syslog.cc">

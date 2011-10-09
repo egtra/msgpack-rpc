@@ -172,6 +172,12 @@
     <ClInclude Include="include\mp\cstdint.h">
       <Filter>mp</Filter>
     </ClInclude>
+    <ClInclude Include="src\cclog\cclog_debugoutput.h">
+      <Filter>cclog</Filter>
+    </ClInclude>
+    <ClInclude Include="src\cclog\cclog_console.h">
+      <Filter>cclog</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\cclog\cclog_null.cc">
@@ -237,6 +243,12 @@
     </ClCompile>
     <ClCompile Include="src\msgpack\rpc\winiocp\loop_impl.cc">
       <Filter>msgpack\rpc\winiocp</Filter>
+    </ClCompile>
+    <ClCompile Include="src\cclog\cclog_debugoutput.cc">
+      <Filter>cclog</Filter>
+    </ClCompile>
+    <ClCompile Include="src\cclog\cclog_console.cc">
+      <Filter>cclog</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
