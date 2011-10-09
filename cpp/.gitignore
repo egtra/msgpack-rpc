@@ -1,6 +1,10 @@
 *.o
 *.lo
 *.la
+*.opensdf
+*.sdf
+*.suo
+*.vcxproj.user
 .deps
 .libs
 config.h
@@ -27,7 +31,3 @@ test/unix
 Debug/
 Release/
 ipch/
-msgpack-rpc_vc10.opensdf
-msgpack-rpc_vc10.sdf
-msgpack-rpc_vc10.suo
-msgpack-rpc_vc10.vcxproj.user
