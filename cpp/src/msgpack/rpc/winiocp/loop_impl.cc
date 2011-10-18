@@ -30,26 +30,37 @@ typedef UNIQUE_PTR_WITH_DELETER(HANDLE, ::UnregisterWait) unique_wait_handle;
 
 const ULONG_PTR COMPLATE_KEY_END = 1;
 
-class timer {
-public:
-	timer(mp::weak_ptr<iocp_loop> loop, mp::int64_t value_100nsec, int interval_msec, mp::function<bool ()> callback);
+class loop_impl;
 
-	HANDLE get_handle() const
-	{
-		return htimer.get();
-	}
+class timer
+{
+public:
+	typedef mp::function<bool ()> callback_t;
+
+	explicit timer(loop_impl& loopimpl);
+	~timer();
+
+	mp::intptr_t add(mp::int64_t value_100nsec, int interval_msec, callback_t callback);
+	void remove(mp::intptr_t htimer);
+
+	void end();
 
 private:
-	static void CALLBACK on_timer_entry(void* parameter, BOOLEAN);
-	void on_timer();
+	typedef std::map<HANDLE, callback_t> callback_map_t;
+	typedef mp::sync<callback_map_t> callback_sync_t;
 
-	unique_handle htimer;
-	unique_wait_handle hwait;
-	mp::weak_ptr<iocp_loop> m_loop;
-	mp::function<bool ()> m_callback;
+	callback_sync_t m_callback;
+	unique_handle m_notify;
+	unique_handle m_thread;
+	loop_impl& m_loopimpl;
 
-	timer(const timer&);
-	timer& operator =(const timer&);
+	static DWORD CALLBACK timer_thread(void* pthis);
+	void timer_main();
+	void invoke(HANDLE htimer);
+
+private:
+	timer(const timer&); // = delete;
+	timer& operator=(const timer&); // = delete;
 };
 
 class loop_impl
@@ -64,6 +75,13 @@ public:
 	std::atomic<bool> end_flag;
 #endif
 
+	bool is_end() const
+	{
+		return end_flag;
+	}
+
+	void end();
+
 	typedef mp::sync<std::vector<unique_handle> > workers_t;
 	workers_t worker;
 
@@ -72,14 +90,18 @@ public:
 
 	bool dispatch(bool block);
 
-	mp::intptr_t add_timer(mp::weak_ptr<iocp_loop> loop, mp::int64_t value_100nsec, int interval_msec, mp::function<bool ()> callback);
+	void submit_impl(mp::function<void ()> f);
+
+	mp::intptr_t add_timer(mp::int64_t value_100nsec, int interval_msec, mp::function<bool ()> callback);
 	void remove_timer(mp::intptr_t timer);
 
-	typedef std::vector<mp::shared_ptr<timer> > vec_timer_t;
-	typedef mp::sync<vec_timer_t> sync_timer_t;
-	sync_timer_t m_timer;
+	static DWORD WINAPI timer_thread_entry(void* pthis);
+	void timer_main();
+	unique_handle timer_thread;
 
 private:
+	timer m_timer;
+
 	loop_impl(const loop_impl&); // = delete;
 	loop_impl& operator=(const loop_impl&); // = delete;
 };
@@ -99,9 +121,12 @@ private:
 };
 
 loop_impl::loop_impl(int threads) :
-	hiocp(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, threads)),
-	end_flag()
+	end_flag(), m_timer(*this)
 {
+	hiocp.reset(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, threads));
+	if(hiocp.get() == NULL) {
+		throw mp::system_error(::GetLastError(), "CreateIoCompletionPort failed");
+	}
 }
 
 DWORD WINAPI loop_impl::thread_entry(void* pthis)
@@ -146,15 +171,47 @@ bool loop_impl::dispatch(bool block)
 	return true;
 }
 
-timer::timer(mp::weak_ptr<iocp_loop> loop, int64_t value_100nsec, int interval_msec, mp::function<bool ()> callback)
-	: htimer(), m_loop(loop), m_callback(callback)
+void loop_impl::end()
 {
-	htimer.reset(::CreateWaitableTimer(NULL, FALSE, NULL));
-	if(!htimer) {
+	end_flag = true;
+	m_timer.end();
+	::PostQueuedCompletionStatus(hiocp.get(), 0, detail::COMPLATE_KEY_END, 0);
+}
+
+timer::timer(loop_impl& loopimpl)
+	: m_loopimpl(loopimpl)
+{
+	m_notify.reset(::CreateEvent(NULL, FALSE, FALSE, NULL));
+	if(m_notify.get() == NULL) {
+		throw mp::system_error(::GetLastError(), "CreateEvent for timer::m_notify failed");
+	}
+	DWORD thread_id;
+	m_thread.reset(::CreateThread(NULL, 0, timer_thread, this, 0, &thread_id));
+}
+
+struct close_timer_handle
+{
+	void operator()(const std::pair<HANDLE, timer::callback_t>& pair) const
+	{
+		::CloseHandle(pair.first);
+	}
+};
+
+timer::~timer()
+{
+	end();
+	::WaitForSingleObject(m_thread.get(), INFINITE);
+	std::for_each(m_callback.unsafe_ref().begin(), m_callback.unsafe_ref().end(), close_timer_handle());
+}
+
+mp::intptr_t timer::add(mp::int64_t value_100nsec, int interval_msec, callback_t callback)
+{
+	unique_handle htimer(::CreateWaitableTimer(NULL, FALSE, NULL));
+	if(!htimer.get()) {
 		throw mp::system_error(::GetLastError(), "CreateWaitableTimer failed");
 	}
 
-	assert(value_100nsec != 0);  // FIX ME: shoud call CancelWaitableTimer?
+	assert(value_100nsec != 0);  // FIX ME: should call CancelWaitableTimer?
 
 	LARGE_INTEGER value;
 	value.QuadPart = value_100nsec;
@@ -162,55 +219,124 @@ timer::timer(mp::weak_ptr<iocp_loop> loop, int64_t value_100nsec, int interval_m
 		throw mp::system_error(::GetLastError(), "SetWaitableTimer failed");
 	}
 
-	HANDLE hw;
-	if(!::RegisterWaitForSingleObject(&hw, htimer.get(), on_timer_entry, this, INFINITE, WT_EXECUTEDEFAULT)) {
-		throw mp::system_error(::GetLastError(), "RegisterWaitForSingleObject failed");
-	}
-	hwait.reset(hw);
+	::SetEvent(m_notify.get());
+	callback_sync_t::ref ref(m_callback);
+	ref->insert(std::make_pair(htimer.get(), callback));
+	return reinterpret_cast<intptr_t>(htimer.release());
 }
 
-void CALLBACK timer::on_timer_entry(void* parameter, BOOLEAN)
+void timer::remove(mp::intptr_t htimer)
 {
-	timer* pthis = static_cast<timer*>(parameter);
-	mp::shared_ptr<iocp_loop> loop = pthis->m_loop.lock();
-	if(loop) {
-		loop->submit(&timer::on_timer, pthis);
-	}
-}
-
-void timer::on_timer()
-{
-	if(!m_callback()) {
-		::CancelWaitableTimer(htimer.get());
+	HANDLE h = reinterpret_cast<HANDLE>(htimer);
+	callback_sync_t::ref ref(m_callback);
+	callback_map_t::iterator it = ref->find(h);
+	if(it != ref->end()) {
+		::CloseHandle(h);
+		ref->erase(it);
 	}
 }
 
-mp::intptr_t loop_impl::add_timer(mp::weak_ptr<iocp_loop> loop, mp::int64_t value_100nsec, int interval_msec, mp::function<bool ()> callback)
+DWORD CALLBACK timer::timer_thread(void* pthis)
 {
-	sync_timer_t::ref ref(m_timer);
-	ref->push_back(mp::make_shared<timer>(loop, value_100nsec, interval_msec, callback));
-	return reinterpret_cast<mp::intptr_t>(ref->back()->get_handle());
+	try {
+		static_cast<timer*>(pthis)->timer_main();;
+	} catch (const std::exception& e) {
+		LOG_WARN("timer thread error: ", e.what());
+	} catch (...) {
+		LOG_WARN("timer thread error: unknown error");
+	}
+	return 0;
 }
 
-struct timer_finder
+struct get_first
 {
-	typedef bool result_type;
-	bool operator()(const mp::shared_ptr<timer>& timer, mp::intptr_t htimer) const
+	template<typename T, typename U> T operator()(const std::pair<T, U>& pair) const
 	{
-		return timer->get_handle() == reinterpret_cast<HANDLE>(htimer);
+		return pair.first;
 	}
 };
 
+void timer::timer_main()
+{
+	for(;;) {
+		std::vector<HANDLE> handles;
+		{
+			callback_sync_t::ref ref(m_callback);
+			handles.reserve(ref->size() + 1);
+			handles.push_back(m_notify.get());
+			std::transform(ref->begin(), ref->end(), std::back_inserter(handles), get_first());
+		}
+		DWORD ret = ::WaitForMultipleObjects(handles.size(), &handles.front(), FALSE, INFINITE);
+		if(m_loopimpl.is_end()) {
+			return;
+		}
+		if(ret < WAIT_OBJECT_0 + handles.size()) {
+			m_loopimpl.submit_impl(mp::bind(&timer::invoke, this, handles[ret - WAIT_OBJECT_0]));
+		} else if(ret == WAIT_FAILED) {
+			DWORD error = ::GetLastError();
+			LOG_WARN("WaitForMultipleObjects in timer thread failed: ", error);
+			return;
+		} else {
+			LOG_WARN("unknown return code from WaitForMultipleObjects in timer thread: ", ret);
+		}
+	}
+}
+
+void timer::invoke(HANDLE htimer)
+{
+	callback_sync_t::ref ref(m_callback);
+	callback_map_t::const_iterator it = ref->find(htimer);
+	if(it != ref->end()) {
+		callback_t callback = it->second;
+		ref.reset();
+		if(!callback()) {
+			remove(reinterpret_cast<mp::intptr_t>(htimer));
+		}
+	}
+}
+
+void timer::end()
+{
+	if(!m_loopimpl.is_end()) {
+		throw std::logic_error("timer::set_end: iocp_loop must be end state.");
+	}
+	if(!::SetEvent(m_notify.get())) {
+		throw mp::system_error(::GetLastError(), "SetEvent in timer::set_end failed");
+	}
+}
+
+mp::intptr_t loop_impl::add_timer(mp::int64_t value_100nsec, int interval_msec, mp::function<bool ()> callback)
+{
+	return m_timer.add(value_100nsec, interval_msec, callback);
+}
+
 void loop_impl::remove_timer(mp::intptr_t timer)
 {
-	using namespace mp::placeholders;
+	m_timer.remove(timer);
+}
 
-	sync_timer_t::ref ref(m_timer);
-	vec_timer_t::const_iterator it = std::find_if(ref->begin(), ref->end(), mp::bind(timer_finder(), _1, timer));
-	if(it == ref->end()) {
-		throw std::invalid_argument("remove_timer");
+class task_overlapped : public detail::overlapped_callback
+{
+public:
+	mp::function<void ()> m_callback;
+
+	task_overlapped(mp::function<void ()> callback) : m_callback(std::move(callback)) {}
+
+	void on_completed(DWORD /*transferred*/, DWORD /*error*/) override
+	{
+		m_callback();
 	}
-	ref->erase(it);
+};
+
+void loop_impl::submit_impl(mp::function<void ()> f)
+{
+	std::auto_ptr<task_overlapped> ov(new task_overlapped(std::move(f)));
+	LOG_TRACE("submit_impl: ", ov.get());
+	if(::PostQueuedCompletionStatus(hiocp.get(), 0, 0, ov.get())) {
+		ov.release();
+	} else {
+		throw mp::system_error(::GetLastError(), "PostQueuedCompletionStatus failed");
+	}
 }
 
 }  // namespace detail
@@ -267,13 +393,12 @@ void iocp_loop::flush()
 
 void iocp_loop::end()
 {
-	m_impl->end_flag = true;
-	::PostQueuedCompletionStatus(m_impl->hiocp.get(), 0, detail::COMPLATE_KEY_END, 0);
+	m_impl->end();
 }
 
 bool iocp_loop::is_end() const
 {
-	return m_impl->end_flag;
+	return m_impl->is_end();
 }
 
 void iocp_loop::join()
@@ -544,43 +669,24 @@ SOCKET iocp_loop::listen(int socket_family, int socket_type, int protocol,
 	return lsock.release();
 }
 
-class task_overlapped : public detail::overlapped_callback
-{
-public:
-	mp::function<void ()> m_callback;
-
-	task_overlapped(mp::function<void ()> callback) : m_callback(std::move(callback)) {}
-
-	void on_completed(DWORD /*transferred*/, DWORD /*error*/) override
-	{
-		m_callback();
-	}
-};
-
 void iocp_loop::submit_impl(task_t f)
 {
-	std::auto_ptr<task_overlapped> ov(new task_overlapped(std::move(f)));
-	LOG_TRACE("submit_impl: ", ov.get());
-	if(::PostQueuedCompletionStatus(m_impl->hiocp.get(), 0, 0, ov.get())) {
-		ov.release();
-	} else {
-		throw mp::system_error(::GetLastError(), "PostQueuedCompletionStatus failed");
-	}
+	m_impl->submit_impl(f);
 }
 
 mp::intptr_t iocp_loop::add_timer(double value_sec, double interval_sec, mp::function<bool ()> callback)
 {
 	if(value_sec >= 0.0) {
 		if(interval_sec > 0.0) {
-			return m_impl->add_timer(shared_from_this(), static_cast<mp::int64_t>(value_sec * -10000000), static_cast<long>(interval_sec * 1000), callback);
+			return m_impl->add_timer(static_cast<mp::int64_t>(value_sec * -10000000), static_cast<long>(interval_sec * 1000), callback);
 		} else {
-			return m_impl->add_timer(shared_from_this(), static_cast<mp::int64_t>(value_sec * -10000000), 0, callback);
+			return m_impl->add_timer(static_cast<mp::int64_t>(value_sec * -10000000), 0, callback);
 		}
 	} else {
 		if(interval_sec > 0.0) {
-			return m_impl->add_timer(shared_from_this(), 0, static_cast<long>(interval_sec * 1000), callback);
+			return m_impl->add_timer(0, static_cast<long>(interval_sec * 1000), callback);
 		} else {
-			return m_impl->add_timer(shared_from_this(), 0, 0, callback);
+			return m_impl->add_timer(0, 0, callback);
 		}
 	}
 }
