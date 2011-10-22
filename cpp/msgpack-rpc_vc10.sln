@@ -7,6 +7,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Test", "Test", "{495A8EBF-8
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sync_call", "test\projects\sync_call.vcxproj", "{3473C40C-A659-4DC3-A830-5E69DE8512C3}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "async_call", "test\projects\async_call.vcxproj", "{E0C0FC91-0202-499E-8DE7-520133A2DB1C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -31,11 +33,20 @@ Global
 		{3473C40C-A659-4DC3-A830-5E69DE8512C3}.Release|Win32.Build.0 = Release|Win32
 		{3473C40C-A659-4DC3-A830-5E69DE8512C3}.Release-Boost|Win32.ActiveCfg = Release-Boost|Win32
 		{3473C40C-A659-4DC3-A830-5E69DE8512C3}.Release-Boost|Win32.Build.0 = Release-Boost|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Debug|Win32.Build.0 = Debug|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Debug-Boost|Win32.ActiveCfg = Debug-Boost|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Debug-Boost|Win32.Build.0 = Debug-Boost|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Release|Win32.ActiveCfg = Release|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Release|Win32.Build.0 = Release|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Release-Boost|Win32.ActiveCfg = Release-Boost|Win32
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C}.Release-Boost|Win32.Build.0 = Release-Boost|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{3473C40C-A659-4DC3-A830-5E69DE8512C3} = {495A8EBF-837F-4318-A2B4-8D9190A2BE92}
+		{E0C0FC91-0202-499E-8DE7-520133A2DB1C} = {495A8EBF-837F-4318-A2B4-8D9190A2BE92}
 	EndGlobalSection
 EndGlobal
