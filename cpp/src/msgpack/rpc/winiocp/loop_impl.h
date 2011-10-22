@@ -113,8 +113,6 @@ private:
 	typedef mp::function<void ()> task_t;
 	void submit_impl(task_t f);
 
-	SOCKET craete_socket(int af, int type, int protocol);
-
 	mp::unique_ptr<detail::loop_impl, mp::default_delete<detail::loop_impl> > m_impl;
 
 	iocp_loop(const iocp_loop&); // = delete;

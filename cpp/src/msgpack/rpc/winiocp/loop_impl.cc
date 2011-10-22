@@ -68,26 +68,39 @@ class loop_impl
 public:
 	explicit loop_impl(int threads);
 
-	unique_handle hiocp;
-#ifdef _MSC_VER
-	volatile bool end_flag;
-#else
-	std::atomic<bool> end_flag;
-#endif
-
 	bool is_end() const
 	{
-		return end_flag;
+		return ::WaitForSingleObject(m_end_event.get(), 0) != WAIT_TIMEOUT;
 	}
 
 	void end();
 
+	HANDLE get_end_event() const
+	{
+		return m_end_event.get();
+	}
+
+	HANDLE get_iocp() const
+	{
+		return hiocp.get();
+	}
+
+	void add_thread(size_t num);
+	void join();
+
+	bool is_running()
+	{
+		return !workers_t::ref(worker)->empty();
+	}
+
+private:
 	typedef mp::sync<std::vector<unique_handle> > workers_t;
 	workers_t worker;
 
 	static DWORD WINAPI thread_entry(void* pthis);
 	void thread_main();
 
+public:
 	bool dispatch(bool block);
 
 	void submit_impl(mp::function<void ()> f);
@@ -95,13 +108,20 @@ public:
 	mp::intptr_t add_timer(mp::int64_t value_100nsec, int interval_msec, mp::function<bool ()> callback);
 	void remove_timer(mp::intptr_t timer);
 
+private:
+	timer m_timer;
 	static DWORD WINAPI timer_thread_entry(void* pthis);
 	void timer_main();
 	unique_handle timer_thread;
 
-private:
-	timer m_timer;
+public:
+	SOCKET craete_socket(int af, int type, int protocol);
 
+private:
+	unique_handle hiocp;
+	unique_handle m_end_event;
+
+private:
 	loop_impl(const loop_impl&); // = delete;
 	loop_impl& operator=(const loop_impl&); // = delete;
 };
@@ -121,8 +141,13 @@ private:
 };
 
 loop_impl::loop_impl(int threads) :
-	end_flag(), m_timer(*this)
+	m_timer(*this)
 {
+	m_end_event.reset(::CreateEvent(NULL, TRUE, FALSE, NULL));
+	if(m_end_event.get() == NULL) {
+		throw mp::system_error(::GetLastError(), "CreateEvent failed");
+	}
+
 	hiocp.reset(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, threads));
 	if(hiocp.get() == NULL) {
 		throw mp::system_error(::GetLastError(), "CreateIoCompletionPort failed");
@@ -173,9 +198,45 @@ bool loop_impl::dispatch(bool block)
 
 void loop_impl::end()
 {
-	end_flag = true;
-	m_timer.end();
+	::SetEvent(m_end_event.get());
 	::PostQueuedCompletionStatus(hiocp.get(), 0, detail::COMPLATE_KEY_END, 0);
+}
+
+void loop_impl::add_thread(size_t num)
+{
+	if(is_end()) {
+		return;
+	}
+	workers_t::ref ref(worker);
+	size_t prev_size = ref->size();
+	ref->reserve(prev_size + num);
+	for(size_t i = 0; i < num; ++i) {
+		ref->push_back(detail::unique_handle());
+		ref->back().reset(::CreateThread(NULL, 0, detail::loop_impl::thread_entry, this, 0, NULL));
+		if(ref->back().get() == NULL) {
+			ref->pop_back();
+			throw mp::system_error(::GetLastError(), "CreateThread failed");
+		}
+	}
+}
+
+void loop_impl::join()
+{
+	workers_t::ref ref(worker);
+	if (ref->empty()) {
+		return;
+	}
+	std::vector<HANDLE> h;
+	h.reserve(ref->size());
+	std::transform(ref->begin(), ref->end(), std::back_inserter(h), mp::mem_fn(&detail::unique_handle::get));
+	ref.reset();
+	for(size_t i = 0; i < h.size(); i += MAXIMUM_WAIT_OBJECTS) {
+		DWORD ret = ::WaitForMultipleObjects(std::min<DWORD>(MAXIMUM_WAIT_OBJECTS, h.size() - i), &h[i], TRUE, INFINITE);
+		if(ret == WAIT_FAILED) {
+			DWORD error = ::GetLastError();
+			LOG_WARN("WaitForMultipleObjects in loop_impl::join error: ", error);
+		}
+	}
 }
 
 timer::timer(loop_impl& loopimpl)
@@ -262,7 +323,8 @@ void timer::timer_main()
 		std::vector<HANDLE> handles;
 		{
 			callback_sync_t::ref ref(m_callback);
-			handles.reserve(ref->size() + 1);
+			handles.reserve(ref->size() + 2);
+			handles.push_back(m_loopimpl.get_end_event());
 			handles.push_back(m_notify.get());
 			std::transform(ref->begin(), ref->end(), std::back_inserter(handles), get_first());
 		}
@@ -270,7 +332,9 @@ void timer::timer_main()
 		if(m_loopimpl.is_end()) {
 			return;
 		}
-		if(ret < WAIT_OBJECT_0 + handles.size()) {
+		if(ret == WAIT_OBJECT_0 + 1) {
+			continue;
+		} else if(WAIT_OBJECT_0 + 2 <= ret && ret < WAIT_OBJECT_0 + handles.size()) {
 			m_loopimpl.submit_impl(mp::bind(&timer::invoke, this, handles[ret - WAIT_OBJECT_0]));
 		} else if(ret == WAIT_FAILED) {
 			DWORD error = ::GetLastError();
@@ -339,9 +403,19 @@ void loop_impl::submit_impl(mp::function<void ()> f)
 	}
 }
 
-}  // namespace detail
+SOCKET loop_impl::craete_socket(int af, int type, int protocol)
+{
+	detail::unique_socket s(::WSASocket(af, type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED));
+	if(s.get() == INVALID_SOCKET) {
+		throw mp::system_error(::WSAGetLastError(), "WSASocket failed");
+	}
+	if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(s.get()), hiocp.get(), 0, 0) == NULL) {
+		throw mp::system_error(::GetLastError(), "CreateIoCompletionPort failed");
+	}
+	return s.release();
+}
 
-typedef detail::loop_impl::workers_t::ref worker_ref;
+}  // namespace detail
 
 iocp_loop::iocp_loop(int threads)
 	: m_impl(new detail::loop_impl(threads))
@@ -371,7 +445,7 @@ void iocp_loop::run(size_t num)
 
 bool iocp_loop::is_running() const
 {
-	return !worker_ref(m_impl->worker)->empty();
+	return m_impl->is_running();
 }
 
 void iocp_loop::run_once()
@@ -403,49 +477,14 @@ bool iocp_loop::is_end() const
 
 void iocp_loop::join()
 {
-	worker_ref ref(m_impl->worker);
-	if (ref->empty()) {
-		return;
-	}
-	std::vector<HANDLE> h;
-	h.reserve(ref->size());
-	std::transform(ref->begin(), ref->end(), std::back_inserter(h), mp::mem_fn(&detail::unique_handle::get));
-	size_t i = 0;
-	for(; i < h.size(); i += MAXIMUM_WAIT_OBJECTS) {
-		::WaitForMultipleObjects(std::min<DWORD>(MAXIMUM_WAIT_OBJECTS, h.size() - i), &h[i], TRUE, INFINITE);
-	}
+	m_impl->join();
 }
 
 //void iocp_loop::detach()
 
 void iocp_loop::add_thread(size_t num)
 {
-	if(m_impl->end_flag) {
-		return;
-	}
-	worker_ref ref(m_impl->worker);
-	size_t prev_size = ref->size();
-	ref->reserve(prev_size + num);
-	for(size_t i = 0; i < num; ++i) {
-		ref->push_back(detail::unique_handle());
-		ref->back().reset(::CreateThread(NULL, 0, detail::loop_impl::thread_entry, m_impl.get(), 0, NULL));
-		if(ref->back().get() == NULL) {
-			ref->pop_back();
-			throw mp::system_error(::GetLastError(), "CreateThread failed");
-		}
-	}
-}
-
-SOCKET iocp_loop::craete_socket(int af, int type, int protocol)
-{
-	detail::unique_socket s(::WSASocket(af, type, protocol, NULL, 0, WSA_FLAG_OVERLAPPED));
-	if(s.get() == INVALID_SOCKET) {
-		throw mp::system_error(::WSAGetLastError(), "WSASocket failed");
-	}
-	if(::CreateIoCompletionPort(reinterpret_cast<HANDLE>(s.get()), m_impl->hiocp.get(), 0, 0) == NULL) {
-		throw mp::system_error(::GetLastError(), "CreateIoCompletionPort failed");
-	}
-	return s.release();
+	return m_impl->add_thread(num);
 }
 
 template<typename T>
@@ -563,7 +602,7 @@ void iocp_loop::connect(const sockaddr* addr, socklen_t addrlen, double timeout_
 
 	detail::unique_socket s;
 	try {
-		s.reset(craete_socket(addr->sa_family, SOCK_STREAM, 0));
+		s.reset(m_impl->craete_socket(addr->sa_family, SOCK_STREAM, 0));
 	} catch (const mp::system_error& e) {
 		callback(INVALID_SOCKET, e.code);
 	}
@@ -597,7 +636,7 @@ void iocp_loop::connect(const sockaddr* addr, socklen_t addrlen, double timeout_
 	this->submit(connect_wait, info);
 }
 
-void listen_loop(SOCKET lsock, iocp_loop::listen_callback_t callback, HANDLE hiocp)
+void listen_loop(SOCKET lsock, iocp_loop::listen_callback_t callback, HANDLE hiocp, HANDLE end_flag)
 {
 	detail::unique_wsaevent e(::WSACreateEvent());
 	if(e.get() == WSA_INVALID_EVENT) {
@@ -609,10 +648,12 @@ void listen_loop(SOCKET lsock, iocp_loop::listen_callback_t callback, HANDLE hio
 		return;
 	}
 
-	WSAEVENT e2 = e.get();
+	const HANDLE wait_event[] = {end_flag, e.get()};
 	for (;;) {
-		DWORD wait = ::WSAWaitForMultipleEvents(1, &e2, FALSE, WSA_INFINITE, FALSE);
-		if(wait == WSA_WAIT_EVENT_0) {
+		DWORD wait = ::WaitForMultipleObjects(ARRAYSIZE(wait_event), wait_event, FALSE, WSA_INFINITE);
+		if(wait == WAIT_OBJECT_0) {
+			return;
+		} else if(wait == WAIT_OBJECT_0 + 1) {
 			WSANETWORKEVENTS ne;
 			if(::WSAEnumNetworkEvents(lsock, e.get(), &ne) != 0) {
 				DWORD error = ::WSAGetLastError();
@@ -647,7 +688,7 @@ void listen_loop(SOCKET lsock, iocp_loop::listen_callback_t callback, HANDLE hio
 SOCKET iocp_loop::listen(int socket_family, int socket_type, int protocol,
 	const sockaddr* addr, socklen_t addrlen, listen_callback_t callback, int backlog)
 {
-	detail::unique_socket lsock(craete_socket(addr->sa_family, SOCK_STREAM, 0));
+	detail::unique_socket lsock(m_impl->craete_socket(addr->sa_family, SOCK_STREAM, 0));
 
 	BOOL on = TRUE;
 	if(::setsockopt(lsock.get(), SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&on), sizeof(on)) != 0) {
@@ -662,10 +703,7 @@ SOCKET iocp_loop::listen(int socket_family, int socket_type, int protocol,
 		throw mp::system_error(::WSAGetLastError(), "listen failed");
 	}
 
-	SOCKET ls = lsock.get();
-	HANDLE hiocp = m_impl->hiocp.get();
-	submit(listen_loop, ls, callback, hiocp);
-
+	submit(listen_loop, lsock.get(), callback, m_impl->get_iocp(), m_impl->get_end_event());
 	return lsock.release();
 }
 

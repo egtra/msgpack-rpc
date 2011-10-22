@@ -42,9 +42,6 @@ int main(void)
 
 	std::cout << "call: echo(\"MessagePack-RPC\") = " << ret << std::endl;
 
-	svr.close();
-	svr.end();
-	svr.join();
 	return 0;
 }
 
