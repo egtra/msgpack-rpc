@@ -30,4 +30,6 @@ test/udp
 test/unix
 Debug/
 Release/
+Debug-Boost/
+Release-Boost/
 ipch/

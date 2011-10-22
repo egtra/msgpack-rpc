@@ -2,3 +2,4 @@
 *.vcproj -crlf
 *.vcxproj -crlf
 *.vcxproj.filters -crlf
+*.props -crlf
