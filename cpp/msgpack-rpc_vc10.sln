@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "async_call", "test\projects
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "notify", "test\projects\notify.vcxproj", "{71F78CC4-F700-47D9-9368-2AE52D7E0C73}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "async_server", "test\projects\async_server.vcxproj", "{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -51,6 +53,14 @@ Global
 		{71F78CC4-F700-47D9-9368-2AE52D7E0C73}.Release|Win32.Build.0 = Release|Win32
 		{71F78CC4-F700-47D9-9368-2AE52D7E0C73}.Release-Boost|Win32.ActiveCfg = Release-Boost|Win32
 		{71F78CC4-F700-47D9-9368-2AE52D7E0C73}.Release-Boost|Win32.Build.0 = Release-Boost|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Debug|Win32.ActiveCfg = Debug|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Debug|Win32.Build.0 = Debug|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Debug-Boost|Win32.ActiveCfg = Debug-Boost|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Debug-Boost|Win32.Build.0 = Debug-Boost|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Release|Win32.ActiveCfg = Release|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Release|Win32.Build.0 = Release|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Release-Boost|Win32.ActiveCfg = Release-Boost|Win32
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F}.Release-Boost|Win32.Build.0 = Release-Boost|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -59,5 +69,6 @@ Global
 		{3473C40C-A659-4DC3-A830-5E69DE8512C3} = {495A8EBF-837F-4318-A2B4-8D9190A2BE92}
 		{E0C0FC91-0202-499E-8DE7-520133A2DB1C} = {495A8EBF-837F-4318-A2B4-8D9190A2BE92}
 		{71F78CC4-F700-47D9-9368-2AE52D7E0C73} = {495A8EBF-837F-4318-A2B4-8D9190A2BE92}
+		{4FEEFDF2-0B87-4AD6-B41D-01B38ED87E8F} = {495A8EBF-837F-4318-A2B4-8D9190A2BE92}
 	EndGlobalSection
 EndGlobal
