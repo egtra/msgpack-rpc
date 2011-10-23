@@ -65,6 +65,8 @@ private:
 
 class loop_impl
 {
+	unique_handle m_end_event;
+	unique_handle hiocp;
 public:
 	explicit loop_impl(int threads);
 
@@ -112,14 +114,9 @@ private:
 	timer m_timer;
 	static DWORD WINAPI timer_thread_entry(void* pthis);
 	void timer_main();
-	unique_handle timer_thread;
 
 public:
 	SOCKET craete_socket(int af, int type, int protocol);
-
-private:
-	unique_handle hiocp;
-	unique_handle m_end_event;
 
 private:
 	loop_impl(const loop_impl&); // = delete;
