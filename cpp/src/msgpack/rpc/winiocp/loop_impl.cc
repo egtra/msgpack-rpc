@@ -123,20 +123,6 @@ private:
 	loop_impl& operator=(const loop_impl&); // = delete;
 };
 
-class overlapped_callback : public ::OVERLAPPED
-{
-public:
-	virtual void on_completed(DWORD transferred, DWORD error) = 0;
-	virtual ~overlapped_callback() {}
-
-protected:
-	overlapped_callback() : ::OVERLAPPED() {}
-
-private:
-	overlapped_callback(const overlapped_callback&); // = delete;
-	overlapped_callback& operator=(const overlapped_callback&); // = delete;
-};
-
 loop_impl::loop_impl(int threads) :
 	m_timer(*this)
 {
@@ -265,7 +251,7 @@ timer::~timer()
 mp::intptr_t timer::add(mp::int64_t value_100nsec, int interval_msec, callback_t callback)
 {
 	unique_handle htimer(::CreateWaitableTimer(NULL, FALSE, NULL));
-	if(!htimer.get()) {
+	if(htimer.get() == NULL) {
 		throw mp::system_error(::GetLastError(), "CreateWaitableTimer failed");
 	}
 
@@ -359,10 +345,10 @@ void timer::invoke(HANDLE htimer)
 void timer::end()
 {
 	if(!m_loopimpl.is_end()) {
-		throw std::logic_error("timer::set_end: iocp_loop must be end state.");
+		throw std::logic_error("timer::end: iocp_loop must be end state.");
 	}
 	if(!::SetEvent(m_notify.get())) {
-		throw mp::system_error(::GetLastError(), "SetEvent in timer::set_end failed");
+		throw mp::system_error(::GetLastError(), "SetEvent in timer::end failed");
 	}
 }
 
@@ -378,9 +364,9 @@ void loop_impl::remove_timer(mp::intptr_t timer)
 
 class task_overlapped : public detail::overlapped_callback
 {
-public:
 	mp::function<void ()> m_callback;
 
+public:
 	task_overlapped(mp::function<void ()> callback) : m_callback(std::move(callback)) {}
 
 	void on_completed(DWORD /*transferred*/, DWORD /*error*/) override
@@ -484,65 +470,44 @@ void iocp_loop::add_thread(size_t num)
 	return m_impl->add_thread(num);
 }
 
-template<typename T>
-class send_receive_overlapped : public detail::overlapped_callback
+void iocp_loop::send_impl(SOCKET socket, const WSABUF* buffers, size_t count, std::auto_ptr<detail::overlapped_callback> callback)
 {
-	T m_callback;
-
-public:
-	send_receive_overlapped(T callback) : m_callback(std::move(callback)) {}
-
-	void on_completed(DWORD transferred, DWORD error) override
-	{
-		m_callback(transferred, error);
-	}
-};
-
-void iocp_loop::send(SOCKET socket, const WSABUF* buffers, size_t count, send_receive_callback_t callback)
-{
-	typedef send_receive_overlapped<send_receive_callback_t> receive_overlapped;
-	std::auto_ptr<receive_overlapped> ov(new(std::nothrow) receive_overlapped(std::move(callback)));
-	if(ov.get() == NULL && callback) {
-		callback(0, ERROR_OUTOFMEMORY);
-	}
 	try {
-		LOG_TRACE("send: ", ov.get());
-		int ret = ::WSASend(socket, const_cast<WSABUF*>(buffers), count, NULL, 0, ov.get(), NULL);
+		LOG_TRACE("send_impl: ", callback.get());
+		int ret = ::WSASend(socket, const_cast<WSABUF*>(buffers), count, NULL, 0, callback.get(), NULL);
 		if(ret != 0) {
 			DWORD error = ::WSAGetLastError();
 			if(error != WSA_IO_PENDING) {
-				ov->on_completed(0, error);
+				callback->on_completed(0, error);
 				return;
 			}
 		}
-		ov.release();
+		callback.release();
 	} catch(const std::bad_alloc&) {
-		ov->on_completed(0, ERROR_OUTOFMEMORY);
+		callback->on_completed(0, ERROR_OUTOFMEMORY);
 	} catch(...) {
-		ov->on_completed(0, E_UNEXPECTED);
+		callback->on_completed(0, E_UNEXPECTED);
 	}
 }
 
-void iocp_loop::receive(SOCKET socket, const WSABUF* buffers, size_t count, send_receive_callback_t callback)
+void iocp_loop::receive_impl(SOCKET socket, const WSABUF* buffers, size_t count, std::auto_ptr<detail::overlapped_callback> callback)
 {
-	typedef send_receive_overlapped<send_receive_callback_t> receive_overlapped;
 	try {
-		std::auto_ptr<receive_overlapped> ov(new receive_overlapped(std::move(callback)));
-		LOG_TRACE("receive: ", ov.get());
+		LOG_TRACE("receive_impl: ", ov.get());
 		DWORD flags = 0;
-		int ret = ::WSARecv(socket, const_cast<WSABUF*>(buffers), count, NULL, &flags, ov.get(), NULL);
+		int ret = ::WSARecv(socket, const_cast<WSABUF*>(buffers), count, NULL, &flags, callback.get(), NULL);
 		if(ret != 0) {
 			DWORD error = ::WSAGetLastError();
 			if(error != WSA_IO_PENDING) {
-				ov->on_completed(0, error);
+				callback->on_completed(0, error);
 				return;
 			}
 		}
-		ov.release();
+		callback.release();
 	} catch(const std::bad_alloc&) {
-		callback(0, ERROR_OUTOFMEMORY);
+		callback->on_completed(0, ERROR_OUTOFMEMORY);
 	} catch(...) {
-		callback(0, E_UNEXPECTED);
+		callback->on_completed(0, E_UNEXPECTED);
 	}
 }
 

@@ -31,6 +31,34 @@ namespace detail
 
 class loop_impl;
 
+class overlapped_callback : public ::OVERLAPPED
+{
+public:
+	virtual void on_completed(DWORD transferred, DWORD error) = 0;
+	virtual ~overlapped_callback() {}
+
+protected:
+	overlapped_callback() : ::OVERLAPPED() {}
+
+private:
+	overlapped_callback(const overlapped_callback&); // = delete;
+	overlapped_callback& operator=(const overlapped_callback&); // = delete;
+};
+
+template<typename T>
+class send_receive_overlapped : public detail::overlapped_callback
+{
+	T m_callback;
+
+public:
+	send_receive_overlapped(T callback) : m_callback(std::move(callback)) {}
+
+	void on_completed(DWORD transferred, DWORD error) override
+	{
+		m_callback(transferred, error);
+	}
+};
+
 }  // namespace detail
 
 class iocp_loop : public mp::enable_shared_from_this<iocp_loop> {
@@ -65,10 +93,34 @@ public:
 	SOCKET listen(int socket_family, int socket_type, int protocol,
 		const sockaddr* addr, socklen_t addrlen, listen_callback_t callback, int backlog = 1024);
 
-	typedef mp::function<void (DWORD transferred, DWORD error)> send_receive_callback_t;
+private:
+	void send_impl(SOCKET socket, const WSABUF* buffers, size_t count, std::auto_ptr<detail::overlapped_callback> callback);
+	void receive_impl(SOCKET socket, const WSABUF* buffers, size_t count, std::auto_ptr<detail::overlapped_callback> callback);
 
-	void send(SOCKET socket, const WSABUF* buffers, size_t count, send_receive_callback_t callback);
-	void receive(SOCKET socket, const WSABUF* buffers, size_t count, send_receive_callback_t callback);
+public:
+	template<typename F>
+	void send(SOCKET socket, const WSABUF* buffers, size_t count, F callback)
+	{
+		std::auto_ptr<detail::overlapped_callback> overlapped(
+			new(std::nothrow) detail::send_receive_overlapped<F>(callback));
+		if(overlapped.get() == NULL) {
+			callback(0, ERROR_NOT_ENOUGH_MEMORY);
+		} else {
+			send_impl(socket, buffers, count, overlapped);
+		}
+	}
+
+	template<typename F>
+	void receive(SOCKET socket, const WSABUF* buffers, size_t count, F callback)
+	{
+		std::auto_ptr<detail::overlapped_callback> overlapped(
+			new(std::nothrow) detail::send_receive_overlapped<F>(callback));
+		if(overlapped.get() == NULL) {
+			callback(0, ERROR_NOT_ENOUGH_MEMORY);
+		} else {
+			receive_impl(socket, buffers, count, overlapped);
+		}
+	}
 
 	mp::intptr_t add_timer(double value_sec, double interval_sec, mp::function<bool ()> callback);
 
